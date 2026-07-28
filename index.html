@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Homestead</title>
+  <style>
+    body { margin: 0; overflow: hidden; font-family: system-ui, sans-serif; }
+    #ui {
+      position: fixed; top: 10px; left: 10px; z-index: 1;
+      background: rgba(0,0,0,.6); color: #eee; padding: 10px 12px;
+      border-radius: 8px; font-size: 13px; user-select: none;
+    }
+    #ui button { margin: 2px; cursor: pointer; }
+    #ui button.active { background: #7c5; }
+    #status { margin-top: 6px; white-space: pre-line; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <div>
+      <button id="mode-view" class="active">View</button>
+      <button id="mode-sculpt">Sculpt</button>
+      <button id="mode-build">Build</button>
+      <button id="save">Save</button>
+      <button id="load">Load</button>
+    </div>
+    <div id="sculpt-opts" hidden>
+      Brush: <button id="brush-lower">Lower</button><button id="brush-raise" class="active">Raise</button>
+    </div>
+    <div id="build-opts" hidden>
+      Module: <button id="mod-wall" class="active">Wall</button><button id="mod-floor">Floor</button><button id="mod-roof">Roof</button>
+      <span>(click = place, right-click = remove)</span>
+    </div>
+    <div id="status"></div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
