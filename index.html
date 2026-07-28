@@ -30,13 +30,25 @@
     button:hover { background: rgba(255,255,255,.16); }
     button.active { background: var(--accent); border-color: var(--accent); color: #102410; font-weight: 600; }
     #clock { font-size: 22px; font-weight: 600; letter-spacing: 1px; }
+    #day-label { font-size: 12px; opacity: .8; }
     #harvest { color: var(--accent); font-weight: 600; }
     #npc-status { margin-top: 8px; opacity: .85; white-space: pre-line; line-height: 1.5; }
     .row { margin-top: 6px; }
+    #title { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+    #mood { font-size: 18px; }
+    #energy-bar {
+      width: 130px; height: 8px; border-radius: 99px; background: rgba(255,255,255,.12);
+      margin: 6px 0 4px auto; overflow: hidden;
+    }
+    #energy-fill {
+      height: 100%; width: 100%; border-radius: 99px; transition: width .3s;
+      background: linear-gradient(90deg, #e4572e, #f3a712, var(--accent));
+    }
   </style>
 </head>
 <body>
   <div id="hud" class="panel">
+    <div id="title">🏡 Claude's Homestead</div>
     <div>
       <button id="mode-play" class="active">Play</button>
       <button id="mode-orbit">Orbit</button>
@@ -57,9 +69,11 @@
   </div>
   <div id="clockpane" class="panel">
     <div id="clock">08:00</div>
+    <div id="day-label">Day 1 · <span id="mood">🙂</span></div>
+    <div id="energy-bar"><div id="energy-fill"></div></div>
     <div>Harvested: <span id="harvest">0</span> 🎃</div>
   </div>
-  <div id="hint" class="panel">WASD move · Shift run · drag to look · scroll zoom · E plant/harvest at the farm</div>
+  <div id="hint" class="panel">WASD move · Shift run · drag look · E: farm plant/harvest, sleep at home when dark · rest by the fire to recover</div>
   <div id="toast"></div>
   <script type="module" src="/src/main.js"></script>
 </body>

@@ -1,10 +1,13 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { terrain, terrainHeightAt, sculptAt } from './terrain.js';
-import { sky, sun, hemi, updateDay, configureRenderer, buildScenery } from './environment.js';
+import {
+  sky, sun, moon, hemi, updateDay, configureRenderer, buildScenery, updateEnvironment, CAMPFIRE,
+} from './environment.js';
 import { createHouse } from './house.js';
 import { createFarm, updateFarm, interactFarm } from './farm.js';
 import { createPlayer, updatePlayer } from './player.js';
+import { createDog, updateDog } from './dog.js';
 import {
   MODULE_DEFS, snap, moduleGroup, makeModuleMesh,
   placeModule, removeModuleByMesh, reglueModules,
@@ -26,8 +29,9 @@ document.body.appendChild(renderer.domElement);
 
 const house = createHouse();
 const player = createPlayer();
-scene.add(sky, sun, hemi, terrain, moduleGroup, house, createFarm(), buildScenery(),
-  player.group, ...npcs.map(n => n.group));
+const dog = createDog();
+scene.add(sky, sun, moon, hemi, terrain, moduleGroup, house, createFarm(), buildScenery(),
+  player.group, dog.group, ...npcs.map(n => n.group));
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.maxPolarAngle = Math.PI / 2.05;
@@ -44,6 +48,8 @@ addEventListener('resize', () => {
 let dayTime = 8; // hours, 0..24
 const GAME_HOURS_PER_SEC = 0.1; // 4-minute full day
 let harvested = 0;
+let day = 1;
+let energy = 100;
 let mode = 'play';
 let brushDir = 1;
 let buildType = 'wall';
@@ -66,7 +72,7 @@ function toast(msg) {
 
 // ---------- modes ----------
 const HINTS = {
-  play: 'WASD move · Shift run · drag to look · scroll zoom · E plant/harvest at the farm',
+  play: 'WASD move · Shift run · drag look · E: farm plant/harvest, sleep at home when dark · rest by the fire to recover',
   orbit: 'Drag to orbit · scroll zoom · right-drag pan',
   sculpt: 'Left-drag to sculpt terrain · scroll zoom',
   build: 'Click to place · right-click to remove · scroll zoom',
@@ -97,13 +103,15 @@ for (const t of ['wall', 'floor', 'roof']) {
     if (ghost) { scene.remove(ghost); ghost = makeModuleMesh(t, true); scene.add(ghost); }
   };
 }
-$('save').onclick = () => { saveGame(dayTime, player, harvested); toast('Game saved'); };
+$('save').onclick = () => { saveGame({ dayTime, player, harvested, day, energy }); toast('Game saved'); };
 $('load').onclick = () => {
   const s = loadGame();
   if (!s) { toast('No valid save found'); return; }
   dayTime = s.dayTime;
   player.x = s.player.x; player.z = s.player.z;
   harvested = s.harvested;
+  day = s.day;
+  energy = s.energy;
   toast('Game loaded');
 };
 
@@ -116,9 +124,17 @@ addEventListener('keydown', e => {
     input[k.slice(0, -1)] += k.endsWith('+') ? 1 : -1;
   } else if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') input.run = true;
   else if (e.code === 'KeyE' && mode === 'play') {
-    const msg = interactFarm(player.x, player.z);
-    if (msg === 'harvest') { harvested++; toast('Harvested! 🎃'); }
-    else if (msg) toast(msg);
+    const isNight = dayTime >= 20 || dayTime < 5;
+    if (isNight && Math.hypot(player.x, player.z) < 9) {
+      day++; dayTime = 6; energy = 100;
+      toast(`Good morning! ☀️ Day ${day}`);
+    } else if (energy < 3) {
+      toast('Too tired to work… rest by the fire or sleep at home');
+    } else {
+      const msg = interactFarm(player.x, player.z);
+      if (msg === 'harvest') { harvested++; energy -= 3; toast('Harvested! 🎃'); }
+      else if (msg) { if (msg.startsWith('Planted')) energy -= 2; toast(msg); }
+    }
   }
 });
 addEventListener('keyup', e => {
@@ -194,20 +210,46 @@ const clock = new THREE.Clock();
 function tick() {
   requestAnimationFrame(tick);
   const dt = Math.min(clock.getDelta(), 0.1);
+  const t = clock.elapsedTime;
+  const prevTime = dayTime;
   dayTime = (dayTime + dt * GAME_HOURS_PER_SEC) % 24;
+  if (dayTime < prevTime) { day++; toast(`Day ${day} 🌙`); } // stayed up past midnight
   const dayness = updateDay(dayTime, scene);
+  updateEnvironment(dt, t, dayness);
   house.userData.light.intensity = dayness < 0.25 ? 2.2 : 0;
 
-  if (mode === 'play') updatePlayer(player, dt, input, camYaw);
-  else player.group.position.set(player.x, terrainHeightAt(player.x, player.z), player.z);
+  let speed = 0;
+  if (mode === 'play') {
+    const canRun = energy > 5;
+    speed = updatePlayer(player, dt, { ...input, run: input.run && canRun }, camYaw);
+  } else {
+    player.group.position.set(player.x, terrainHeightAt(player.x, player.z), player.z);
+  }
+  updateDog(dog, dt, player, t);
   for (const n of npcs) updateNPC(n, dt, dayTime);
   updateFarm(dt);
+
+  // work-life balance: moving costs energy, resting restores it —
+  // faster by the campfire or with company
+  const nearFire = Math.hypot(player.x - CAMPFIRE.x, player.z - CAMPFIRE.z) < 4;
+  const nearFriend = npcs.some(n => Math.hypot(n.x - player.x, n.z - player.z) < 4);
+  if (speed > 5) energy -= 3.2 * dt;
+  else if (speed > 0.1) energy -= 1.1 * dt;
+  else energy += (nearFire ? 6 : 2) * dt;
+  energy = Math.max(0, Math.min(100, energy));
+
+  const mood = energy > 65 ? (nearFriend || nearFire ? '😄' : '🙂')
+    : energy > 35 ? '🙂' : energy > 12 ? '😐' : '😫';
 
   const hh = String(Math.floor(dayTime)).padStart(2, '0');
   const mm = String(Math.floor((dayTime % 1) * 60)).padStart(2, '0');
   $('clock').textContent = `${hh}:${mm}`;
+  $('day-label').childNodes[0].textContent = `Day ${day} · `;
+  $('mood').textContent = mood;
+  $('energy-fill').style.width = `${energy}%`;
   $('harvest').textContent = harvested;
-  $('npc-status').textContent = npcs.map(n => `${n.name} (${n.role}): ${n.status}`).join('\n');
+  $('npc-status').textContent =
+    npcs.map(n => `${n.name} (${n.role}): ${n.status}`).join('\n') + '\nBiscuit 🐕: right beside you';
 
   if (mode === 'play') updateCamera();
   else controls.update();

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { SIZE, terrainHeightAt } from './terrain.js';
 
 // stylized low-poly character shared by player and NPCs
-export function createCharacter(shirt, pants = 0x3b4252, skin = 0xf0c8a0) {
+export function createCharacter(shirt, pants = 0x3b4252, skin = 0xf0c8a0, hair = 0x4a3220) {
   const g = new THREE.Group();
   const mat = c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8 });
 
@@ -10,6 +10,15 @@ export function createCharacter(shirt, pants = 0x3b4252, skin = 0xf0c8a0) {
   torso.position.y = 1.05;
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.26, 14, 12), mat(skin));
   head.position.y = 1.72;
+  const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.27, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), mat(hair));
+  hairCap.position.y = 1.76;
+  const eyeMat = mat(0x22201e);
+  for (const ex of [-0.09, 0.09]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 5), eyeMat);
+    eye.position.set(ex, 1.75, 0.23);
+    g.add(eye);
+  }
+  g.add(hairCap);
 
   const limb = (r, len, color) => {
     const geo = new THREE.CapsuleGeometry(r, len, 4, 8);
@@ -39,7 +48,7 @@ export function animateCharacter(ch, dt, speed) {
 }
 
 export function createPlayer() {
-  const ch = createCharacter(0x2a9d8f, 0x33415c);
+  const ch = createCharacter(0x2a9d8f, 0x33415c, 0xf0c8a0, 0x3a2a1a);
   const p = { ...ch, x: 4, z: 7, heading: 0 };
   return p;
 }
