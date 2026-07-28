@@ -83,6 +83,7 @@ let hunger = 100, fishing = false, fishTimer = 0, fishCount = 0;
 let farmSkill = 0, fishSkill = 0;
 let stepTimer = 0;
 let lastNpcToast = -60, lastWildlifeMin = -1, lastFestSeason = -1, lastGiftDay = 0;
+let lastDogFeed = -99; // in-game hours; can feed every 2 hours
 let dailyHarvests = 0, dailyCatches = 0, dailyTalks = 0;
 const npcGifts = []; // {x, z, name, claimed}
 const particleBursts = []; // {pts, geo, mat, vel, life}
@@ -224,8 +225,15 @@ addEventListener('keydown', e => {
       energy = Math.min(100, energy + 3);
       toast(stars[Math.floor(Math.random() * stars.length)], 2800);
     } else if (nearDog) {
-      energy = Math.min(100, energy + 6);
-      toast('Biscuit wags his tail happily! 🐕');
+      const hoursSinceLastFeed = (day - 1) * 24 + dayTime - lastDogFeed;
+      if (hoursSinceLastFeed < 2) {
+        const nextIn = Math.ceil(2 - hoursSinceLastFeed * 60) + ' min';
+        toast(`Biscuit is full! Come back in ~${nextIn} 🐕`);
+      } else {
+        lastDogFeed = (day - 1) * 24 + dayTime;
+        energy = Math.min(100, energy + 6);
+        toast('Biscuit wags his tail happily! 🐕');
+      }
     } else if (nearBench) {
       energy = Math.min(100, energy + 15); hunger = Math.min(100, hunger + 5);
       toast('Sat by the pond and watched the water. 🪷');
@@ -484,7 +492,10 @@ function tick() {
     let eCtx = null;
     if (fishing) eCtx = '🎣 Waiting…';
     else if (npcs.some(n => Math.hypot(n.x - player.x, n.z - player.z) < 2.5)) eCtx = '💬 Talk';
-    else if (Math.hypot(player.x - dog.x, player.z - dog.z) < 2.2) eCtx = '🐕 Pet Biscuit';
+    else if (Math.hypot(player.x - dog.x, player.z - dog.z) < 2.2) {
+      const h = (day - 1) * 24 + dayTime - lastDogFeed;
+      eCtx = h >= 2 ? '🐕 Feed Biscuit' : '🐕 Biscuit is full';
+    }
     else if (npcGifts.some(g => !g.claimed && Math.hypot(player.x - g.x, player.z - g.z) < 3.5)) eCtx = '🎁 Collect gift';
     else if (!isNightHint && Math.hypot(player.x - CAMPFIRE.x, player.z - CAMPFIRE.z) < 4 && dayness < 0.45 && hunger < 90) eCtx = '🍲 Cook at fire';
     else if (isNightHint && Math.hypot(player.x - CAMPFIRE.x, player.z - CAMPFIRE.z) < 5) eCtx = '⭐ Gaze at stars';
