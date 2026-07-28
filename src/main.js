@@ -68,6 +68,7 @@ let buildType = 'wall';
 let camYaw = 0.6, camPitch = 0.42, camDist = 9;
 let wasRaining = false;
 let hunger = 100, fishing = false, fishTimer = 0, fishCount = 0;
+let lastNpcToast = -60;
 const input = { fwd: 0, side: 0, run: false };
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
@@ -160,7 +161,7 @@ addEventListener('keydown', e => {
       toast('Too tired to work… rest by the fire or sleep at home');
     } else {
       const msg = interactFarm(player.x, player.z);
-      if (msg === 'harvest') { harvested++; energy -= 3; toast('Harvested! 🎃'); }
+      if (msg && msg.startsWith('harvest:')) { harvested++; energy -= 3; toast(`Harvested ${msg.slice(8)}! 🎃`); }
       else if (msg) { if (msg.startsWith('Planted')) energy -= 2; toast(msg); }
     }
   }
@@ -260,7 +261,14 @@ function tick() {
     player.group.position.set(player.x, groundAt(player.x, player.z), player.z);
   }
   updateDog(dog, dt, player, t);
-  for (const n of npcs) updateNPC(n, dt, dayTime);
+  for (const n of npcs) {
+    const prev = n.status;
+    updateNPC(n, dt, dayTime);
+    if (n.status !== prev && !n.status.startsWith('walk') && t - lastNpcToast > 55) {
+      toast(`${n.name} is ${n.status}`);
+      lastNpcToast = t;
+    }
+  }
   updateFarm(dt * (1 + weather.rain)); // rain waters the crops: double growth
 
   // work-life balance: moving costs energy, resting restores it —

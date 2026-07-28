@@ -11,10 +11,10 @@ assert(Math.abs(terrainHeightAt(SPOTS.house.x, SPOTS.house.z) - SPOTS.house.h) <
 
 createFarm();
 assert.equal(plots.length, 12, '12 plots');
-assert.equal(interactFarm(plots[0].x, plots[0].z), 'Planted a crop 🌱');
+assert(interactFarm(plots[0].x, plots[0].z).startsWith('Planted'), 'planting returns Planted message');
 updateFarm(30);
 assert.equal(plots[0].state, 2, 'crop ready after grow time');
-assert.equal(interactFarm(plots[0].x, plots[0].z), 'harvest');
+assert(interactFarm(plots[0].x, plots[0].z).startsWith('harvest'), 'harvest returns harvest message');
 
 const p = createPlayer();
 const z0 = p.z;

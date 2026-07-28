@@ -3,13 +3,18 @@ import { SPOTS, terrainHeightAt } from './terrain.js';
 
 // plantable plots: E to plant, crops grow over time, E again to harvest
 const GROW_TIME = 25; // seconds to full growth
-export const plots = []; // {x, z, state: 0 empty | 1 growing | 2 ready, t, crop, fruit}
+export const plots = []; // {x, z, state: 0 empty | 1 growing | 2 ready, t, stemM, fruitM, cropName}
+
+const CROPS = [
+  { name: 'pumpkin 🎃', stem: 0x4f8f2f, fruit: 0xe07a10 },
+  { name: 'tomato 🍅', stem: 0x3d7a2f, fruit: 0xcc3320 },
+  { name: 'wheat 🌾', stem: 0xd4a820, fruit: 0xf0d060 },
+  { name: 'carrot 🥕', stem: 0x50902a, fruit: 0xff7420 },
+];
 
 export function createFarm() {
   const g = new THREE.Group();
   const soilMat = new THREE.MeshStandardMaterial({ color: 0x4a3626, roughness: 1 });
-  const stemMat = new THREE.MeshStandardMaterial({ color: 0x4f8f2f, roughness: 0.8 });
-  const fruitMat = new THREE.MeshStandardMaterial({ color: 0xd9772f, roughness: 0.6 });
 
   for (let r = 0; r < 3; r++) {
     for (let c = 0; c < 4; c++) {
@@ -20,11 +25,13 @@ export function createFarm() {
       soil.position.set(x, y + 0.1, z);
       soil.receiveShadow = true;
 
+      const stemM = new THREE.MeshStandardMaterial({ color: 0x4f8f2f, roughness: 0.8 });
+      const fruitM = new THREE.MeshStandardMaterial({ color: 0xd9772f, roughness: 0.6 });
       const crop = new THREE.Group();
-      const stem = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.85, 7), stemMat);
+      const stem = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.85, 7), stemM);
       stem.position.y = 0.42;
       stem.castShadow = true;
-      const fruit = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 8), fruitMat);
+      const fruit = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 8), fruitM);
       fruit.position.set(0.3, 0.18, 0.2);
       fruit.castShadow = true;
       fruit.visible = false;
@@ -33,7 +40,7 @@ export function createFarm() {
       crop.visible = false;
 
       g.add(soil, crop);
-      plots.push({ x, z, state: 0, t: 0, crop, fruit });
+      plots.push({ x, z, state: 0, t: 0, crop, fruit, stemM, fruitM, cropName: '' });
     }
   }
   return g;
@@ -62,7 +69,14 @@ export function interactFarm(px, pz) {
     if (d < bestD) { best = p; bestD = d; }
   }
   if (!best) return null;
-  if (best.state === 0) { best.state = 1; best.t = 0; return 'Planted a crop 🌱'; }
-  if (best.state === 2) { best.state = 0; best.t = 0; return 'harvest'; }
+  if (best.state === 0) {
+    const c = CROPS[Math.floor(Math.random() * CROPS.length)];
+    best.stemM.color.setHex(c.stem);
+    best.fruitM.color.setHex(c.fruit);
+    best.cropName = c.name;
+    best.state = 1; best.t = 0;
+    return `Planted ${c.name} 🌱`;
+  }
+  if (best.state === 2) { best.state = 0; best.t = 0; return 'harvest:' + best.cropName; }
   return 'Still growing…';
 }

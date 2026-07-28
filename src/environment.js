@@ -73,9 +73,11 @@ function scatter(count, place, filter = null) {
 }
 
 // dynamic bits driven by updateEnvironment
-let waterGeo, clouds = [], bees = [], butterflies = [], fireflies, fireflyBase, starsMat, flame, fireLight;
+let waterGeo, clouds = [], bees = [], butterflies = [], birds = [],
+  fireflies, fireflyBase, starsMat, flame, fireLight;
 let rainPts, rainVel = [];
 let snowPts, snowVel = [], snowDrift = [];
+let leafMat, grassInstMat; // updated each frame for seasonal color
 export const CAMPFIRE = new THREE.Vector3(8.5, 0, 8.5);
 
 // ponytail: coin-flip weather, no fronts or forecast; add a pressure sim never
@@ -86,7 +88,7 @@ export function buildScenery() {
 
   // trees
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6e4f30, roughness: 1 });
-  const leafMat = new THREE.MeshStandardMaterial({ color: 0x4e7d33, roughness: 0.9 });
+  leafMat = new THREE.MeshStandardMaterial({ color: 0x4e7d33, roughness: 0.9 });
   const pineMat = new THREE.MeshStandardMaterial({ color: 0x3c6b3a, roughness: 0.9 });
   const N_ROUND = 70, N_PINE = 50;
   const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.18, 0.3, 2.2, 6), trunkMat, N_ROUND + N_PINE);
@@ -123,9 +125,8 @@ export function buildScenery() {
 
   // grass tufts everywhere the ground is grassy
   const N_GRASS = 4200;
-  const grassMesh = new THREE.InstancedMesh(
-    new THREE.ConeGeometry(0.07, 0.45, 4),
-    new THREE.MeshStandardMaterial({ color: 0x69a144, roughness: 1 }), N_GRASS);
+  grassInstMat = new THREE.MeshStandardMaterial({ color: 0x69a144, roughness: 1 });
+  const grassMesh = new THREE.InstancedMesh(new THREE.ConeGeometry(0.07, 0.45, 4), grassInstMat, N_GRASS);
   const gCol = new THREE.Color();
   scatter(N_GRASS, ([x, y, z], i) => {
     dummy.position.set(x, y + 0.16, z);
@@ -359,6 +360,16 @@ export function buildScenery() {
   }));
   group.add(fireflies);
 
+  // birds: small dark fliers circling above the terrain
+  const birdMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
+  for (let i = 0; i < 7; i++) {
+    const bird = new THREE.Mesh(new THREE.SphereGeometry(0.3, 5, 3), birdMat);
+    bird.scale.set(0.9, 0.16, 0.4);
+    bird.userData = { phase: (i / 7) * Math.PI * 2, r: 20 + (i % 3) * 7, spd: 0.28 + i * 0.035, dy: i * 1.3 };
+    birds.push(bird);
+    group.add(bird);
+  }
+
   return group;
 }
 
@@ -461,4 +472,22 @@ export function updateEnvironment(dt, t, dayness, day = 1) {
     flame.scale.set(flicker, flicker * (1 + Math.sin(t * 7) * 0.15), flicker);
     fireLight.intensity = 2.2 * flicker;
   } else fireLight.intensity = 0;
+
+  // seasonal foliage colors: spring green → summer deep → autumn amber → winter dormant
+  const leafColors = [0x5d9a3a, 0x4e7d33, 0xc87820, 0x6a7560];
+  const grassColors = [0x7ab848, 0x5d9a30, 0xa0872a, 0x7a8068];
+  leafMat.color.setHex(leafColors[season]);
+  grassInstMat.color.setHex(grassColors[season]);
+
+  // birds circle during the day, hide at night and in heavy rain
+  const birdsActive = dayness > 0.08 && weather.rain < 0.7;
+  for (const b of birds) {
+    b.visible = birdsActive;
+    if (birdsActive) {
+      const u = b.userData;
+      const a = t * u.spd + u.phase;
+      b.position.set(Math.cos(a) * u.r, 18 + Math.sin(t * 0.6 + u.dy) * 3, Math.sin(a) * u.r);
+      b.rotation.y = a + Math.PI / 2;
+    }
+  }
 }
