@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { SIZE, terrainHeightAt } from './terrain.js';
+import { SIZE } from './terrain.js';
+import { groundAt } from './house.js';
 
 // stylized low-poly character shared by player and NPCs
 export function createCharacter(shirt, pants = 0x3b4252, skin = 0xf0c8a0, hair = 0x4a3220) {
@@ -71,7 +72,7 @@ export function updatePlayer(p, dt, input, camYaw) {
     while (d < -Math.PI) d += Math.PI * 2;
     p.heading += d * Math.min(1, dt * 12);
   }
-  p.group.position.set(p.x, terrainHeightAt(p.x, p.z), p.z);
+  p.group.position.set(p.x, groundAt(p.x, p.z), p.z);
   p.group.rotation.y = p.heading;
   animateCharacter(p, dt, speed);
   return speed;

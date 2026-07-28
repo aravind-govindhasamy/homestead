@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { terrainHeightAt } from './terrain.js';
+import { groundAt } from './house.js';
 
 // Biscuit: follows the player, wags constantly, sits when you stand still
 export function createDog() {
@@ -57,7 +57,7 @@ export function updateDog(dog, dt, player, t) {
   }
 
   const sitting = dog.idleTime > 2;
-  dog.group.position.set(dog.x, terrainHeightAt(dog.x, dog.z), dog.z);
+  dog.group.position.set(dog.x, groundAt(dog.x, dog.z), dog.z);
   dog.group.rotation.y = dog.heading;
   dog.group.rotation.x = sitting ? -0.35 : 0; // haunches down
   dog.tail.rotation.z = Math.sin(t * (speed > 0.5 ? 14 : 7)) * 0.5;

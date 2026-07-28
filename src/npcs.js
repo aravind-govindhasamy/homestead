@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { terrainHeightAt, SPOTS } from './terrain.js';
+import { SPOTS } from './terrain.js';
 import { CAMPFIRE } from './environment.js';
+import { groundAt } from './house.js';
 import { createCharacter, animateCharacter } from './player.js';
 
 // ponytail: waypoint FSM, no navmesh/Yuka; add three-pathfinding when obstacles matter
@@ -62,6 +63,6 @@ export function updateNPC(n, dt, dayTime) {
   } else {
     n.status = label;
   }
-  n.group.position.set(n.x, terrainHeightAt(n.x, n.z), n.z);
+  n.group.position.set(n.x, groundAt(n.x, n.z), n.z);
   animateCharacter(n, dt, speed);
 }

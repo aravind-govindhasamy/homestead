@@ -9,9 +9,11 @@ Inspired by the "Last of John's Home" concept; design research lives in
 
 ## Features
 
-- **Third-person play** — WASD + camera-orbit control of a stylized character with walk/run animation
-- **Modern home** — flat-roof house with glass front, wood accent wall, deck, and a warm interior light that comes on at dusk
+- **Third-person play** — WASD + camera-orbit control of a stylized character with walk/run animation; Biscuit the dog follows at heel
+- **Work-life balance** — energy drains as you run and work, recovers resting (fastest by the campfire); mood tracks how you're doing; sleep at home at night to start a new day
+- **Modern home** — flat-roof house with glass front, wood accent wall, walkable floor and deck, and a warm interior light that comes on at dusk
 - **Farming** — plant crops with E, watch them grow, harvest when ready; harvest counter in the HUD
+- **Living neighbors** — Alice and Bob follow daily schedules: work blocks, lunch breaks, evenings by the pond or campfire, then bed
 - **Terrain** — procedural value-noise heightmap with blended coloring, flattened pads for house/farm/pond, sculptable with a raise/lower brush
 - **Environment** — atmospheric sky (three.js Sky + ACES tone mapping), day/night cycle, instanced trees, rocks, flowers, a pond, and beehives
 - **Building** — grid-snapped wall/floor/roof modules with ghost preview

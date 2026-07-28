@@ -4,7 +4,7 @@ import { terrain, terrainHeightAt, sculptAt } from './terrain.js';
 import {
   sky, sun, moon, hemi, updateDay, configureRenderer, buildScenery, updateEnvironment, CAMPFIRE,
 } from './environment.js';
-import { createHouse } from './house.js';
+import { createHouse, groundAt } from './house.js';
 import { createFarm, updateFarm, interactFarm } from './farm.js';
 import { createPlayer, updatePlayer } from './player.js';
 import { createDog, updateDog } from './dog.js';
@@ -193,7 +193,7 @@ renderer.domElement.addEventListener('contextmenu', e => { if (mode === 'build')
 // ---------- third-person camera ----------
 const camTarget = new THREE.Vector3();
 function updateCamera() {
-  camTarget.set(player.x, terrainHeightAt(player.x, player.z) + 1.6, player.z);
+  camTarget.set(player.x, groundAt(player.x, player.z) + 1.6, player.z);
   const cp = Math.cos(camPitch);
   camera.position.set(
     camTarget.x + Math.sin(camYaw) * cp * camDist,
@@ -223,7 +223,7 @@ function tick() {
     const canRun = energy > 5;
     speed = updatePlayer(player, dt, { ...input, run: input.run && canRun }, camYaw);
   } else {
-    player.group.position.set(player.x, terrainHeightAt(player.x, player.z), player.z);
+    player.group.position.set(player.x, groundAt(player.x, player.z), player.z);
   }
   updateDog(dog, dt, player, t);
   for (const n of npcs) updateNPC(n, dt, dayTime);

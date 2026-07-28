@@ -1,5 +1,15 @@
 import * as THREE from 'three';
-import { SPOTS } from './terrain.js';
+import { SPOTS, terrainHeightAt } from './terrain.js';
+
+// walkable surfaces: floor slab and deck (ponytail: no wall collision yet —
+// add AABB blocking if walking through glass starts to hurt)
+export function houseSurfaceAt(x, z) {
+  const hx = x - SPOTS.house.x, hz = z - SPOTS.house.z;
+  if (Math.abs(hx) <= 6 && Math.abs(hz) <= 4.25) return SPOTS.house.h + 0.36; // floor slab
+  if (hx >= -3 && hx <= 4 && hz > 4.25 && hz <= 8) return SPOTS.house.h + 0.23; // deck
+  return -Infinity;
+}
+export const groundAt = (x, z) => Math.max(terrainHeightAt(x, z), houseSurfaceAt(x, z));
 
 // modern flat-roof house: white volumes, glass front, wood accent, deck
 export function createHouse() {
