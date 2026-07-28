@@ -4,6 +4,8 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 import { terrain, terrainHeightAt, sculptAt, SPOTS } from './terrain.js';
 import {
   sky, sun, moon, hemi, updateDay, configureRenderer, buildScenery, updateEnvironment,
@@ -38,6 +40,10 @@ const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.3, 0.55, 0.85));
 composer.addPass(new OutputPass());
+const fxaaPass = new ShaderPass(FXAAShader);
+const pr = renderer.getPixelRatio();
+fxaaPass.material.uniforms.resolution.value.set(1 / (innerWidth * pr), 1 / (innerHeight * pr));
+composer.addPass(fxaaPass);
 
 const house = createHouse();
 const player = createPlayer();
@@ -58,6 +64,8 @@ addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
   composer.setSize(innerWidth, innerHeight);
+  const rpr = renderer.getPixelRatio();
+  fxaaPass.material.uniforms.resolution.value.set(1 / (innerWidth * rpr), 1 / (innerHeight * rpr));
 });
 
 // ---------- state ----------
@@ -74,7 +82,7 @@ let wasRaining = false;
 let hunger = 100, fishing = false, fishTimer = 0, fishCount = 0;
 let farmSkill = 0, fishSkill = 0;
 let stepTimer = 0;
-let lastNpcToast = -60, lastWildlifeMin = -1;
+let lastNpcToast = -60, lastWildlifeMin = -1, lastFestSeason = -1;
 let muted = false;
 const achievements = new Set();
 const input = { fwd: 0, side: 0, run: false };
@@ -181,6 +189,9 @@ addEventListener('keydown', e => {
     } else if (nearKitchen && hunger < 95) {
       hunger = Math.min(100, hunger + 45); energy = Math.min(100, energy + 20);
       toast('Ate a home-cooked meal 🍲 — feeling great!');
+    } else if (!isNight && Math.hypot(player.x - CAMPFIRE.x, player.z - CAMPFIRE.z) < 4 && dayness < 0.45 && hunger < 90) {
+      hunger = Math.min(100, hunger + 35); energy = Math.min(100, energy + 15);
+      toast('Cooked at the campfire 🍲 — the smell draws everyone closer!');
     } else if (isNight && Math.hypot(player.x - CAMPFIRE.x, player.z - CAMPFIRE.z) < 5 && !nearKitchen) {
       const stars = [
         '⭐ Orion stands tall, sword gleaming.',
@@ -313,6 +324,16 @@ function tick() {
     day++;
     const forecast = weather.target > 0 ? '🌧️ Rain in the forecast.' : (Math.random() < 0.2 ? '⛅ Partly cloudy.' : '☀️ Clear skies ahead!');
     toast(`Day ${day} begins — ${forecast}`, 2500);
+    // milestones
+    const dayMilestones = { 7: 'One week on the homestead! 🌱', 30: 'First full month! 🌕', 100: 'Hundred days! 🏆' };
+    if (dayMilestones[day]) setTimeout(() => achieve('day' + day, dayMilestones[day]), 2800);
+    // seasonal festivals at day 15 of each season
+    const curSeason = getSeason(day), dayOfSeason = (day - 1) % 30;
+    if (dayOfSeason === 14 && curSeason !== lastFestSeason) {
+      lastFestSeason = curSeason;
+      const fests = ['🌸 Spring Bloom Festival!', '☀️ Midsummer Solstice!', '🍂 Harvest Festival!', '❄️ Winter Solstice!'];
+      setTimeout(() => achieve('fest' + curSeason, fests[curSeason]), 3200);
+    }
   }
   const dayness = updateDay(dayTime, scene);
   updateEnvironment(dt, t, dayness, day);
