@@ -83,7 +83,7 @@ let hunger = 100, fishing = false, fishTimer = 0, fishCount = 0;
 let farmSkill = 0, fishSkill = 0;
 let stepTimer = 0;
 let dayness = 0; // kept module-level so keydown handler and gamepad can read it
-let gpEWasDown = false, gpRun = false; // gamepad state (polled each frame)
+let gpEWasDown = false, gpRun = false, gpIndex = -1; // gamepad state
 let lastNpcToast = -60, lastWildlifeMin = -1, lastFestSeason = -1, lastGiftDay = 0;
 let lastDogFeed = -99; // in-game hours; can feed every 2 hours
 let dailyHarvests = 0, dailyCatches = 0, dailyTalks = 0;
@@ -285,6 +285,14 @@ addEventListener('keyup', e => {
   } else if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') input.run = false;
 });
 addEventListener('blur', () => { input.fwd = 0; input.side = 0; input.run = false; });
+addEventListener('gamepadconnected', e => {
+  gpIndex = e.gamepad.index;
+  toast(`🎮 Controller connected! Use left stick to move, A to interact.`, 2500);
+  $('gp-status').textContent = '🎮';
+});
+addEventListener('gamepaddisconnected', e => {
+  if (e.gamepad.index === gpIndex) { gpIndex = -1; $('gp-status').textContent = ''; }
+});
 
 function pickTerrain(e) {
   pointer.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
@@ -382,7 +390,9 @@ function tick() {
   } else if (weather.target === 0 && weather.rain < 0.1) wasRaining = false;
 
   // ── Gamepad (standard mapping) ─────────────────────────────────────
-  const gp = navigator.getGamepads ? navigator.getGamepads()[0] : null;
+  const gpads = navigator.getGamepads ? navigator.getGamepads() : [];
+  // use tracked index, or scan all slots (handles index != 0 and late connections)
+  const gp = gpIndex >= 0 ? gpads[gpIndex] : Array.from(gpads).find(Boolean) ?? null;
   if (!gp) { gpRun = false; }
   if (gp) {
     const dead = v => Math.abs(v) > 0.15 ? v : 0;
