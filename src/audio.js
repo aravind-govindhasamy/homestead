@@ -1,6 +1,7 @@
 // synthesized ambient sounds via Web Audio API — no audio files needed
 // ponytail: all sounds are oscillator/noise; swap for recorded samples if quality matters
 let ctx, gainRain, gainCricket, gainFire;
+let thunderTimer = 20 + Math.random() * 20;
 
 function loopNoise(ac) {
   const buf = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate);
@@ -41,15 +42,39 @@ export function initAudio() {
   fn.connect(ff); ff.connect(gainFire); gainFire.connect(dst);
 }
 
-export function updateAudio(t, dayness, rainAmt, nearFire) {
-  if (!ctx || ctx.state === 'suspended') return;
+// returns true if thunder fired this frame
+export function updateAudio(dt, t, dayness, rainAmt, nearFire) {
+  if (!ctx || ctx.state === 'suspended') return false;
   const night = Math.max(0, 1 - dayness * 3);
   const now = ctx.currentTime;
   gainRain.gain.setTargetAtTime(rainAmt * 0.15, now, 0.8);
   gainCricket.gain.value = night * (0.01 + Math.sin(t * 7.8) * 0.004);
   gainFire.gain.setTargetAtTime(nearFire && dayness < 0.35 ? 0.05 : 0, now, 0.5);
-  // morning birdsong: random chirps 6am-9am
   if (dayness > 0.3 && dayness < 0.85 && !rainAmt && Math.random() < 0.0005) playBirdChirp();
+  // thunder: random rumble during heavy rain
+  let thundered = false;
+  if (rainAmt > 0.6) {
+    thunderTimer -= dt;
+    if (thunderTimer <= 0) {
+      playThunder();
+      thunderTimer = 15 + Math.random() * 25;
+      thundered = true;
+    }
+  }
+  return thundered;
+}
+
+function playThunder() {
+  if (!ctx || ctx.state === 'suspended') return;
+  const dur = 1.8;
+  const n = loopNoise(ctx);
+  const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 120;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0, ctx.currentTime);
+  g.gain.linearRampToValueAtTime(0.35, ctx.currentTime + 0.05);
+  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+  n.connect(f); f.connect(g); g.connect(ctx.destination);
+  n.stop(ctx.currentTime + dur);
 }
 
 function playBirdChirp() {

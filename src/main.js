@@ -202,8 +202,13 @@ addEventListener('keydown', e => {
       if (friend.rel >= 1 && !achievements.has('friends')) achieve('friends', `Friends with ${friend.name}!`);
       toast(getGreeting(friend));
     } else if (nearKitchen && hunger < 95) {
-      hunger = Math.min(100, hunger + 45); energy = Math.min(100, energy + 20);
-      toast('Ate a home-cooked meal 🍲 — feeling great!');
+      const [mealName, hungerBonus, energyBonus] =
+        dayTime < 10 ? ['a hearty breakfast 🍳', 40, 28] :
+        dayTime < 16 ? ['a fresh salad lunch 🥗', 38, 22] :
+        dayTime < 21 ? ['a home-cooked dinner 🍲', 50, 20] :
+                       ['a late-night snack 🫙', 22, 10];
+      hunger = Math.min(100, hunger + hungerBonus); energy = Math.min(100, energy + energyBonus);
+      toast(`Ate ${mealName} — feeling great!`);
     } else if (!isNight && Math.hypot(player.x - CAMPFIRE.x, player.z - CAMPFIRE.z) < 4 && dayness < 0.45 && hunger < 90) {
       hunger = Math.min(100, hunger + 35); energy = Math.min(100, energy + 15);
       toast('Cooked at the campfire 🍲 — the smell draws everyone closer!');
@@ -395,7 +400,8 @@ function tick() {
   // work-life balance: moving costs energy, resting restores it —
   // faster by the campfire or with company
   const nearFire = Math.hypot(player.x - CAMPFIRE.x, player.z - CAMPFIRE.z) < 4;
-  updateAudio(t, dayness, weather.rain, nearFire);
+  const thunder = updateAudio(dt, t, dayness, weather.rain, nearFire);
+  if (thunder) { scene.fog.color.set(0xffffff); setTimeout(() => { /* fog color restored by updateDay next frame */ }, 80); }
   const nearFriend = npcs.some(n => Math.hypot(n.x - player.x, n.z - player.z) < 4);
   if (speed > 5) energy -= 3.2 * dt;
   else if (speed > 0.1) energy -= 1.1 * dt;
@@ -501,7 +507,11 @@ function tick() {
   $('clock').textContent = `${hh}:${mm}`;
   $('day-label').childNodes[0].textContent = `Day ${day} · `;
   const moonPhases = '🌑🌒🌓🌔🌕🌖🌗🌘';
-  $('season-label').textContent = `${SEASONS[getSeason(day)]} ${moonPhases[day % 8]}`;
+  const curSeasonIdx = getSeason(day);
+  $('season-label').textContent = `${SEASONS[curSeasonIdx]} ${moonPhases[day % 8]}`;
+  // seasonal accent color
+  const seasonAccents = ['#ff85a1', '#6fcf5f', '#f3a712', '#7ec8e3'];
+  document.documentElement.style.setProperty('--accent', seasonAccents[curSeasonIdx]);
   $('mood').textContent = mood;
   $('energy-fill').style.width = `${energy}%`;
   $('hunger-fill').style.width = `${hunger}%`;
