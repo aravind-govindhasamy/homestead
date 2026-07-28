@@ -19,6 +19,7 @@ import {
 } from './buildings.js';
 import { npcs, updateNPC, getGreeting } from './npcs.js';
 import { saveGame, loadGame } from './save.js';
+import { initAudio, updateAudio, setMuted } from './audio.js';
 
 // ---------- scene core ----------
 const scene = new THREE.Scene();
@@ -69,6 +70,8 @@ let camYaw = 0.6, camPitch = 0.42, camDist = 9;
 let wasRaining = false;
 let hunger = 100, fishing = false, fishTimer = 0, fishCount = 0;
 let lastNpcToast = -60;
+let muted = false;
+const achievements = new Set();
 const input = { fwd: 0, side: 0, run: false };
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
@@ -77,13 +80,27 @@ let sculpting = false;
 let dragging = false;
 
 const $ = id => document.getElementById(id);
-function toast(msg) {
+function toast(msg, duration = 1600) {
   const el = $('toast');
   el.textContent = msg;
   el.style.opacity = 1;
+  el.style.color = '';
   clearTimeout(el._t);
-  el._t = setTimeout(() => (el.style.opacity = 0), 1600);
+  el._t = setTimeout(() => (el.style.opacity = 0), duration);
 }
+function achieve(id, msg) {
+  if (achievements.has(id)) return;
+  achievements.add(id);
+  const el = $('toast');
+  el.textContent = `🏆 ${msg}`;
+  el.style.opacity = 1;
+  el.style.color = '#ffd700';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.opacity = 0; el.style.color = ''; }, 3800);
+}
+
+// start audio on first interaction (browsers block AudioContext before gesture)
+renderer.domElement.addEventListener('pointerdown', () => { if (!muted) initAudio(); }, { once: true });
 
 // ---------- modes ----------
 const HINTS = {
@@ -118,6 +135,7 @@ for (const t of ['wall', 'floor', 'roof']) {
     if (ghost) { scene.remove(ghost); ghost = makeModuleMesh(t, true); scene.add(ghost); }
   };
 }
+$('mute').onclick = () => { muted = !muted; setMuted(muted); $('mute').textContent = muted ? '🔇' : '🔊'; };
 $('save').onclick = () => { saveGame({ dayTime, player, harvested, day, energy, hunger }); toast('Game saved'); };
 $('load').onclick = () => {
   const s = loadGame();
@@ -147,6 +165,8 @@ addEventListener('keydown', e => {
     if (fishing) {
       toast('Patience… waiting for a bite 🎣');
     } else if (friend) {
+      friend.rel = Math.min(5, (friend.rel || 0) + 0.4);
+      if (friend.rel >= 1 && !achievements.has('friends')) achieve('friends', `Friends with ${friend.name}!`);
       toast(getGreeting(friend));
     } else if (nearKitchen && hunger < 95) {
       hunger = Math.min(100, hunger + 45); energy = Math.min(100, energy + 20);
@@ -161,7 +181,10 @@ addEventListener('keydown', e => {
       toast('Too tired to work… rest by the fire or sleep at home');
     } else {
       const msg = interactFarm(player.x, player.z);
-      if (msg && msg.startsWith('harvest:')) { harvested++; energy -= 3; toast(`Harvested ${msg.slice(8)}! 🎃`); }
+      if (msg && msg.startsWith('harvest:')) {
+        harvested++; energy -= 3; toast(`Harvested ${msg.slice(8)}! 🎃`);
+        if (harvested === 1) achieve('harvest', 'First Harvest!');
+      }
       else if (msg) { if (msg.startsWith('Planted')) energy -= 2; toast(msg); }
     }
   }
@@ -274,6 +297,7 @@ function tick() {
   // work-life balance: moving costs energy, resting restores it —
   // faster by the campfire or with company
   const nearFire = Math.hypot(player.x - CAMPFIRE.x, player.z - CAMPFIRE.z) < 4;
+  updateAudio(t, dayness, weather.rain, nearFire);
   const nearFriend = npcs.some(n => Math.hypot(n.x - player.x, n.z - player.z) < 4);
   if (speed > 5) energy -= 3.2 * dt;
   else if (speed > 0.1) energy -= 1.1 * dt;
@@ -287,6 +311,7 @@ function tick() {
       const catches = ['a trout', 'a sunfish', 'a perch', 'a tiny bass'];
       toast(`Caught ${catches[(fishCount - 1) % 4]}! 🎣 Total: ${fishCount}`);
       energy = Math.min(100, energy + 8);
+      if (fishCount === 1) achieve('fish', 'First Catch! 🎣');
     }
   }
   hunger -= 0.18 * dt;
@@ -301,14 +326,19 @@ function tick() {
   const mm = String(Math.floor((dayTime % 1) * 60)).padStart(2, '0');
   $('clock').textContent = `${hh}:${mm}`;
   $('day-label').childNodes[0].textContent = `Day ${day} · `;
-  $('season-label').textContent = SEASONS[getSeason(day)];
+  const moonPhases = '🌑🌒🌓🌔🌕🌖🌗🌘';
+  $('season-label').textContent = `${SEASONS[getSeason(day)]} ${moonPhases[day % 8]}`;
   $('mood').textContent = mood;
   $('energy-fill').style.width = `${energy}%`;
   $('hunger-fill').style.width = `${hunger}%`;
   $('harvest').textContent = harvested;
   $('fish-count').textContent = fishCount;
   $('npc-status').textContent =
-    npcs.map(n => `${n.name} (${n.role}): ${n.status}`).join('\n') + '\nBiscuit 🐕: right beside you';
+    npcs.map(n => {
+      const rel = n.rel || 0;
+      const heart = rel >= 4 ? '💖' : rel >= 2 ? '❤️' : rel >= 1 ? '🤍' : '  ';
+      return `${n.name} ${heart} (${n.role}): ${n.status}`;
+    }).join('\n') + '\nBiscuit 🐕: right beside you';
 
   if (mode === 'play') updateCamera();
   else controls.update();

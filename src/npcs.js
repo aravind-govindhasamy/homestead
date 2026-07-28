@@ -38,7 +38,7 @@ export const npcs = [
   },
 ].map((n, i) => {
   const ch = createCharacter(n.shirt, 0x3b4252, 0xf0c8a0, n.hair);
-  return { ...n, ...ch, x: 3 + i * 2, z: 5, status: '' };
+  return { ...n, ...ch, x: 3 + i * 2, z: 5, status: '', rel: 0 };
 });
 
 // context-aware small talk for the E key
