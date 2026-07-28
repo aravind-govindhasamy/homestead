@@ -36,6 +36,18 @@ export const npcs = [
       [20.5, 'home', 'sleeping'],
     ],
   },
+  {
+    name: 'Charlie', role: 'builder', shirt: 0x8a6a30, hair: 0x7a6050,
+    schedule: [
+      [7, 'home', 'having breakfast'],
+      [8.5, 'hives', 'exploring the property'],
+      [12.5, 'campfire', 'lunch break'],
+      [13.5, 'field', 'surveying the land'],
+      [17.5, 'pond', 'relaxing by the pond'],
+      [20.5, 'campfire', 'evening chat'],
+      [22.5, 'home', 'sleeping'],
+    ],
+  },
 ].map((n, i) => {
   const ch = createCharacter(n.shirt, 0x3b4252, 0xf0c8a0, n.hair);
   return { ...n, ...ch, x: 3 + i * 2, z: 5, status: '', rel: 0 };
@@ -48,9 +60,11 @@ export function getGreeting(n) {
   if (s.includes('walking')) return `${n.name}: "Can't chat — ${s.replace('walking', 'heading')}!"`;
   if (s.includes('crops')) return `${n.name}: "The crops are coming along beautifully this year."`;
   if (s.includes('hives')) return `${n.name}: "The bees are happy today. That means good honey."`;
+  if (s.includes('breakfast')) return `${n.name}: "Morning! Nothing starts the day like a good meal."`;
+  if (s.includes('explor') || s.includes('survey')) return `${n.name}: "Always looking for what to build next."`;
   if (s.includes('lunch')) return `${n.name}: "Pull up a seat, there's plenty!"`;
   if (s.includes('pond')) return `${n.name}: "Nothing beats the pond at this hour."`;
-  if (s.includes('fire')) return `${n.name}: "Come sit by the fire a while."`;
+  if (s.includes('fire') || s.includes('chat')) return `${n.name}: "Come sit by the fire a while."`;
   return `${n.name}: "Lovely day on the homestead, isn't it?"`;
 }
 

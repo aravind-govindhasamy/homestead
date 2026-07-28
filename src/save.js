@@ -19,7 +19,7 @@ function isValidSave(d) {
     d.modules.every(m => m && MODULE_DEFS[m.type] &&
       Number.isFinite(m.x) && Math.abs(m.x) <= HALF &&
       Number.isFinite(m.z) && Math.abs(m.z) <= HALF) &&
-    Array.isArray(d.npcs) && d.npcs.length === npcs.length &&
+    Array.isArray(d.npcs) && d.npcs.length >= 2 &&
     d.npcs.every(s => s && Number.isFinite(s.x) && Number.isFinite(s.z)) &&
     Array.isArray(d.plots) && d.plots.length === plots.length &&
     d.plots.every(p => p && [0, 1, 2].includes(p.s) && Number.isFinite(p.t) && p.t >= 0 && p.t <= 10000) &&
@@ -29,6 +29,7 @@ function isValidSave(d) {
     Number.isInteger(d.day) && d.day >= 1 && d.day <= 100000 &&
     Number.isFinite(d.energy) && d.energy >= 0 && d.energy <= 100 &&
     (d.hunger === undefined || (Number.isFinite(d.hunger) && d.hunger >= 0 && d.hunger <= 100)) &&
+    (d.farmSkill === undefined || (Number.isFinite(d.farmSkill) && d.farmSkill >= 0 && d.farmSkill <= 10)) &&
     Number.isFinite(d.dayTime) && d.dayTime >= 0 && d.dayTime < 24
   );
 }
@@ -46,6 +47,7 @@ export function saveGame(state) {
     day: state.day,
     energy: Math.round(state.energy),
     hunger: Math.round(state.hunger ?? 100),
+    farmSkill: Math.round((state.farmSkill ?? 0) * 10) / 10,
     dayTime: state.dayTime,
   };
   localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -63,7 +65,7 @@ export function loadGame() {
   refreshTerrain();
   clearModules();
   data.modules.forEach(m => placeModule(m.type, m.x, m.z));
-  data.npcs.forEach((s, i) => Object.assign(npcs[i], { x: s.x, z: s.z }));
+  data.npcs.forEach((s, i) => { if (npcs[i]) Object.assign(npcs[i], { x: s.x, z: s.z }); });
   data.plots.forEach((s, i) => Object.assign(plots[i], { state: s.s, t: s.t }));
-  return { dayTime: data.dayTime, player: data.player, harvested: data.harvested, day: data.day, energy: data.energy, hunger: data.hunger };
+  return { dayTime: data.dayTime, player: data.player, harvested: data.harvested, day: data.day, energy: data.energy, hunger: data.hunger, farmSkill: data.farmSkill };
 }

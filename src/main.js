@@ -69,6 +69,7 @@ let buildType = 'wall';
 let camYaw = 0.6, camPitch = 0.42, camDist = 9;
 let wasRaining = false;
 let hunger = 100, fishing = false, fishTimer = 0, fishCount = 0;
+let farmSkill = 0;
 let lastNpcToast = -60, lastWildlifeMin = -1;
 let muted = false;
 const achievements = new Set();
@@ -136,7 +137,7 @@ for (const t of ['wall', 'floor', 'roof']) {
   };
 }
 $('mute').onclick = () => { muted = !muted; setMuted(muted); $('mute').textContent = muted ? '🔇' : '🔊'; };
-$('save').onclick = () => { saveGame({ dayTime, player, harvested, day, energy, hunger }); toast('Game saved'); };
+$('save').onclick = () => { saveGame({ dayTime, player, harvested, day, energy, hunger, farmSkill }); toast('Game saved'); };
 $('load').onclick = () => {
   const s = loadGame();
   if (!s) { toast('No valid save found'); return; }
@@ -146,6 +147,7 @@ $('load').onclick = () => {
   day = s.day;
   energy = s.energy;
   if (s.hunger !== undefined) hunger = s.hunger;
+  if (s.farmSkill !== undefined) farmSkill = s.farmSkill;
   toast('Game loaded');
 };
 
@@ -173,6 +175,17 @@ addEventListener('keydown', e => {
     } else if (nearKitchen && hunger < 95) {
       hunger = Math.min(100, hunger + 45); energy = Math.min(100, energy + 20);
       toast('Ate a home-cooked meal 🍲 — feeling great!');
+    } else if (isNight && Math.hypot(player.x - CAMPFIRE.x, player.z - CAMPFIRE.z) < 5 && !nearKitchen) {
+      const stars = [
+        '⭐ Orion stands tall, sword gleaming.',
+        '⭐ The Big Dipper pours starlight over the homestead.',
+        '⭐ Cassiopeia traces its W above the horizon.',
+        '🌟 A shooting star streaks across the meadow!',
+        '⭐ The Pleiades cluster shimmers in the east.',
+        '🌟 Jupiter burns bright near the horizon tonight.',
+      ];
+      energy = Math.min(100, energy + 3);
+      toast(stars[Math.floor(Math.random() * stars.length)], 2800);
     } else if (nearBench) {
       energy = Math.min(100, energy + 15); hunger = Math.min(100, hunger + 5);
       toast('Sat by the pond and watched the water. 🪷');
@@ -199,6 +212,10 @@ addEventListener('keydown', e => {
       if (msg && msg.startsWith('harvest:')) {
         harvested++; energy -= 3; toast(`Harvested ${msg.slice(8)}! 🎃`);
         if (harvested === 1) achieve('harvest', 'First Harvest!');
+        const prevLevel = Math.floor(farmSkill);
+        farmSkill = Math.min(10, farmSkill + 0.5);
+        const levelUp = { 1: 'Farmer in Training! 🌱', 3: 'Getting the Hang of It 🌾', 5: 'Skilled Farmer! 🎃', 7: 'Expert Grower! 🌻', 10: 'Master of the Land! 👑' };
+        if (Math.floor(farmSkill) > prevLevel && levelUp[Math.floor(farmSkill)]) achieve('farm' + Math.floor(farmSkill), levelUp[Math.floor(farmSkill)]);
       }
       else if (msg) { if (msg.startsWith('Planted')) energy -= 2; toast(msg); }
     }
@@ -280,7 +297,11 @@ function tick() {
   const t = clock.elapsedTime;
   const prevTime = dayTime;
   dayTime = (dayTime + dt * GAME_HOURS_PER_SEC) % 24;
-  if (dayTime < prevTime) { day++; toast(`Day ${day} 🌙`); } // stayed up past midnight
+  if (dayTime < prevTime) {
+    day++;
+    const forecast = weather.target > 0 ? '🌧️ Rain in the forecast.' : (Math.random() < 0.2 ? '⛅ Partly cloudy.' : '☀️ Clear skies ahead!');
+    toast(`Day ${day} begins — ${forecast}`, 2500);
+  }
   const dayness = updateDay(dayTime, scene);
   updateEnvironment(dt, t, dayness, day);
   const lampOn = dayness < 0.25;
@@ -307,7 +328,7 @@ function tick() {
       lastNpcToast = t;
     }
   }
-  updateFarm(dt * (1 + weather.rain)); // rain waters the crops: double growth
+  updateFarm(dt * (1 + weather.rain) * (1 + farmSkill * 0.08)); // rain + skill boost growth
 
   // work-life balance: moving costs energy, resting restores it —
   // faster by the campfire or with company
