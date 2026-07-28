@@ -82,6 +82,8 @@ let wasRaining = false;
 let hunger = 100, fishing = false, fishTimer = 0, fishCount = 0;
 let farmSkill = 0, fishSkill = 0;
 let stepTimer = 0;
+let dayness = 0; // kept module-level so keydown handler and gamepad can read it
+let gpEWasDown = false, gpRun = false; // gamepad state (polled each frame)
 let lastNpcToast = -60, lastWildlifeMin = -1, lastFestSeason = -1, lastGiftDay = 0;
 let lastDogFeed = -99; // in-game hours; can feed every 2 hours
 let dailyHarvests = 0, dailyCatches = 0, dailyTalks = 0;
@@ -133,7 +135,7 @@ renderer.domElement.addEventListener('pointerdown', () => { if (!muted) initAudi
 
 // ---------- modes ----------
 const HINTS = {
-  play: 'WASD move · Shift run · drag look · E: talk to friends · fish at pond · cook at kitchen · farm · sleep at home when dark',
+  play: 'WASD / left stick move · Shift / RB run · drag / right stick look · E / A button interact',
   orbit: 'Drag to orbit · scroll zoom · right-drag pan',
   sculpt: 'Left-drag to sculpt terrain · scroll zoom',
   build: 'Click to place · right-click to remove · scroll zoom',
@@ -188,7 +190,10 @@ addEventListener('keydown', e => {
     const k = KEYMAP[e.code];
     input[k.slice(0, -1)] += k.endsWith('+') ? 1 : -1;
   } else if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') input.run = true;
-  else if (e.code === 'KeyE' && mode === 'play') {
+  else if (e.code === 'KeyE' && mode === 'play') doEAction();
+});
+
+function doEAction() {
     const isNight = dayTime >= 20 || dayTime < 5;
     const friend = npcs.find(n => Math.hypot(n.x - player.x, n.z - player.z) < 2.5);
     const nearDog = Math.hypot(player.x - dog.x, player.z - dog.z) < 2.2;
@@ -272,8 +277,7 @@ addEventListener('keydown', e => {
       }
       else if (msg) { if (msg.startsWith('Planted')) energy -= 2; toast(msg); }
     }
-  }
-});
+}
 addEventListener('keyup', e => {
   if (e.code in KEYMAP) {
     const k = KEYMAP[e.code];
@@ -365,7 +369,7 @@ function tick() {
       setTimeout(() => achieve('fest' + curSeason, fests[curSeason]), 3200);
     }
   }
-  const dayness = updateDay(dayTime, scene);
+  dayness = updateDay(dayTime, scene);
   const { sawStar } = updateEnvironment(dt, t, dayness, day);
   if (sawStar) { const wishes = ['🌠 A shooting star! Make a wish…', '🌠 A streak across the heavens!', '🌠 Quick — wish upon a star!']; toast(wishes[Math.floor(Math.random() * 3)], 2200); }
   const lampOn = dayness < 0.25;
@@ -377,10 +381,36 @@ function tick() {
     toast('Rain is rolling in — the crops will love this ☔');
   } else if (weather.target === 0 && weather.rain < 0.1) wasRaining = false;
 
+  // ── Gamepad (standard mapping) ─────────────────────────────────────
+  const gp = navigator.getGamepads ? navigator.getGamepads()[0] : null;
+  if (!gp) { gpRun = false; }
+  if (gp) {
+    const dead = v => Math.abs(v) > 0.15 ? v : 0;
+    const lx = dead(gp.axes[0]), ly = dead(gp.axes[1]);
+    if (lx || ly) { input.fwd = -ly; input.side = lx; }
+    else if (!lx && !ly) { input.fwd = 0; input.side = 0; }
+    // right stick → camera look
+    camYaw -= dead(gp.axes[2]) * 2.0 * dt;
+    camPitch = Math.max(-0.1, Math.min(1.1, camPitch + dead(gp.axes[3]) * 1.5 * dt));
+    // RB (5) or RT (7) → run (tracked separately; OR'd with keyboard Shift below)
+    gpRun = gp.buttons[5]?.pressed || gp.buttons[7]?.pressed || false;
+    // A/Cross (0) → E action (fire once per press)
+    const gpEDown = gp.buttons[0]?.pressed;
+    if (gpEDown && !gpEWasDown && mode === 'play') doEAction();
+    gpEWasDown = gpEDown;
+    // D-pad movement
+    const dup = gp.buttons[12]?.pressed, ddown = gp.buttons[13]?.pressed;
+    const dleft = gp.buttons[14]?.pressed, dright = gp.buttons[15]?.pressed;
+    if (dup || ddown || dleft || dright) {
+      input.fwd = dup ? 1 : ddown ? -1 : 0;
+      input.side = dright ? 1 : dleft ? -1 : 0;
+    }
+  }
+
   let speed = 0;
   if (mode === 'play') {
     const canRun = energy > 5;
-    speed = updatePlayer(player, dt, { ...input, run: input.run && canRun }, camYaw);
+    speed = updatePlayer(player, dt, { ...input, run: (input.run || gpRun) && canRun }, camYaw);
     if (speed > 0.5) {
       stepTimer -= dt;
       if (stepTimer <= 0) { playStep(); stepTimer = input.run ? 0.27 : 0.44; }
