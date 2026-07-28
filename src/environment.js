@@ -42,7 +42,10 @@ export function updateDay(dayTime, scene) {
   moon.position.set(-sunDir.x * 80, Math.max(25, -sunDir.y * 80), -sunDir.z * 80);
   hemi.intensity = (0.12 + 0.55 * dayness) * (1 - weather.rain * 0.25);
   sky.material.uniforms.turbidity.value = 6 + weather.rain * 14;
-  scene.fog.far = 320 - weather.rain * 150;
+  // morning mist peaks just after sunrise (hour ~7), dissipates by 9
+  const mistFactor = Math.max(0, 1 - Math.abs(dayTime - 7) / 2) * Math.min(1, dayness * 5) * (1 - weather.rain * 0.8);
+  scene.fog.near = Math.max(3, 80 - mistFactor * 77);
+  scene.fog.far = 320 - weather.rain * 150 - mistFactor * 150;
   scene.fog.color.lerpColors(new THREE.Color(0x0a0e1c), new THREE.Color(0xbfd4e0), dayness * (1 - weather.rain * 0.3));
   return dayness;
 }
@@ -78,6 +81,7 @@ let waterGeo, clouds = [], bees = [], butterflies = [], birds = [],
 let rainPts, rainVel = [];
 let snowPts, snowVel = [], snowDrift = [];
 let leafMat, grassInstMat; // updated each frame for seasonal color
+let torchLights = []; // {pl: PointLight, fl: flame mesh} — path torches
 export const CAMPFIRE = new THREE.Vector3(8.5, 0, 8.5);
 
 // ponytail: coin-flip weather, no fronts or forecast; add a pressure sim never
@@ -201,6 +205,22 @@ export function buildScenery() {
     dummy.updateMatrix(); stones.setMatrixAt(i, dummy.matrix);
   }
   group.add(stones);
+
+  // path torches lit at dusk, along the stone path toward the farm
+  const flameMat = new THREE.MeshStandardMaterial({
+    color: 0xff8c2e, emissive: 0xff6a00, emissiveIntensity: 2, transparent: true, opacity: 0.9,
+  });
+  for (const [tx, tz] of [[0, 9.8], [-4, 11.5], [-8, 13], [-11, 14.2]]) {
+    const ty = terrainHeightAt(tx, tz);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 1.5, 5), woodMat);
+    pole.position.set(tx, ty + 0.75, tz);
+    const fl = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.28, 5), flameMat.clone());
+    fl.position.set(tx, ty + 1.6, tz);
+    const pl = new THREE.PointLight(0xff9a4d, 0, 9, 2);
+    pl.position.set(tx, ty + 1.65, tz);
+    torchLights.push({ pl, fl, ox: tx });
+    group.add(pole, fl, pl);
+  }
 
   // campfire near the deck
   const fy = terrainHeightAt(CAMPFIRE.x, CAMPFIRE.z);
@@ -472,6 +492,13 @@ export function updateEnvironment(dt, t, dayness, day = 1) {
     flame.scale.set(flicker, flicker * (1 + Math.sin(t * 7) * 0.15), flicker);
     fireLight.intensity = 2.2 * flicker;
   } else fireLight.intensity = 0;
+
+  // path torches flicker at dusk/night
+  const torchOn = dayness < 0.28;
+  for (const { pl, fl, ox } of torchLights) {
+    fl.visible = torchOn;
+    pl.intensity = torchOn ? (1.6 + Math.sin(t * 13.7 + ox) * 0.18 + Math.sin(t * 31.3 + ox * 2) * 0.08) : 0;
+  }
 
   // seasonal foliage colors: spring green → summer deep → autumn amber → winter dormant
   const leafColors = [0x5d9a3a, 0x4e7d33, 0xc87820, 0x6a7560];

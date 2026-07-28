@@ -69,7 +69,7 @@ let buildType = 'wall';
 let camYaw = 0.6, camPitch = 0.42, camDist = 9;
 let wasRaining = false;
 let hunger = 100, fishing = false, fishTimer = 0, fishCount = 0;
-let lastNpcToast = -60;
+let lastNpcToast = -60, lastWildlifeMin = -1;
 let muted = false;
 const achievements = new Set();
 const input = { fwd: 0, side: 0, run: false };
@@ -162,6 +162,8 @@ addEventListener('keydown', e => {
     const friend = npcs.find(n => Math.hypot(n.x - player.x, n.z - player.z) < 2.5);
     const nearPond = Math.hypot(player.x - SPOTS.pond.x, player.z - SPOTS.pond.z) < SPOTS.pond.r + 3;
     const nearKitchen = Math.hypot(player.x - (SPOTS.house.x + 2.2), player.z - (SPOTS.house.z - 3.6)) < 3;
+    const nearBench = Math.hypot(player.x + 15, player.z + 10.6) < 3;
+    const nearBookshelf = Math.hypot(player.x + 5.55, player.z + 1.5) < 2.5;
     if (fishing) {
       toast('Patience… waiting for a bite 🎣');
     } else if (friend) {
@@ -171,6 +173,19 @@ addEventListener('keydown', e => {
     } else if (nearKitchen && hunger < 95) {
       hunger = Math.min(100, hunger + 45); energy = Math.min(100, energy + 20);
       toast('Ate a home-cooked meal 🍲 — feeling great!');
+    } else if (nearBench) {
+      energy = Math.min(100, energy + 15); hunger = Math.min(100, hunger + 5);
+      toast('Sat by the pond and watched the water. 🪷');
+    } else if (nearBookshelf) {
+      const quotes = [
+        '"The earth laughs in flowers." — Emerson 🌸',
+        '"In every walk with nature, one receives far more than he seeks." — Muir 🌿',
+        '"Home is where the heart is." — Pliny the Elder 🏡',
+        '"A quiet garden is a refuge for the spirit." 📖',
+        '"Tend your garden and it will tend to you." 🌱',
+      ];
+      energy = Math.min(100, energy + 5);
+      toast(quotes[Math.floor(Math.random() * quotes.length)]);
     } else if (nearPond) {
       fishing = true; fishTimer = 5 + Math.random() * 8;
       toast('Casting line… 🎣');
@@ -321,6 +336,20 @@ function tick() {
     : energy > 65 ? '😊'
     : energy > 35 ? (wellFed ? '🙂' : '😐')
     : energy > 12 ? '😐' : '😫';
+
+  // rare wildlife sighting once per minute, only outdoors in daylight
+  const curMin = Math.floor(t / 60);
+  if (curMin !== lastWildlifeMin && Math.random() < 0.25 && dayness > 0.15 && t > 20) {
+    lastWildlifeMin = curMin;
+    const wildlife = [
+      '🦌 A deer grazes at the edge of the meadow.',
+      '🐇 A rabbit hops past the farm fence.',
+      '🦊 A fox trots by at the edge of the woods.',
+      '🦅 A hawk soars high overhead.',
+      '🦔 A hedgehog snuffles through the garden.',
+    ];
+    toast(wildlife[Math.floor(Math.random() * wildlife.length)], 2400);
+  }
 
   const hh = String(Math.floor(dayTime)).padStart(2, '0');
   const mm = String(Math.floor((dayTime % 1) * 60)).padStart(2, '0');
