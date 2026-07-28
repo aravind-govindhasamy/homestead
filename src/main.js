@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { terrain, sculptAt } from './terrain.js';
+import { terrain, terrainHeightAt, sculptAt } from './terrain.js';
+import { sky, sun, hemi, updateDay, configureRenderer, buildScenery } from './environment.js';
+import { createHouse } from './house.js';
+import { createFarm, updateFarm, interactFarm } from './farm.js';
+import { createPlayer, updatePlayer } from './player.js';
 import {
   MODULE_DEFS, snap, moduleGroup, makeModuleMesh,
   placeModule, removeModuleByMesh, reglueModules,
@@ -10,28 +14,25 @@ import { saveGame, loadGame } from './save.js';
 
 // ---------- scene core ----------
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87b5d9);
-scene.fog = new THREE.Fog(0x87b5d9, 80, 220);
+scene.fog = new THREE.Fog(0xbfd4e0, 90, 320);
 
-const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 500);
-camera.position.set(30, 25, 30);
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 1000);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
+configureRenderer(renderer);
 document.body.appendChild(renderer.domElement);
 
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.maxPolarAngle = Math.PI / 2.1;
-controls.maxDistance = 150;
+const house = createHouse();
+const player = createPlayer();
+scene.add(sky, sun, hemi, terrain, moduleGroup, house, createFarm(), buildScenery(),
+  player.group, ...npcs.map(n => n.group));
 
-const hemi = new THREE.HemisphereLight(0xbfd9ff, 0x556b3f, 0.7);
-const sun = new THREE.DirectionalLight(0xfff2d8, 1.6);
-sun.castShadow = true;
-sun.shadow.camera.left = sun.shadow.camera.bottom = -60;
-sun.shadow.camera.right = sun.shadow.camera.top = 60;
-scene.add(hemi, sun, terrain, moduleGroup, ...npcs.map(n => n.mesh));
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.maxPolarAngle = Math.PI / 2.05;
+controls.maxDistance = 180;
+controls.enabled = false;
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
@@ -39,41 +40,52 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 
-// ---------- day/night clock ----------
+// ---------- state ----------
 let dayTime = 8; // hours, 0..24
-const GAME_HOURS_PER_SEC = 0.2; // 2-minute full day
-function updateSun() {
-  const angle = ((dayTime - 6) / 24) * Math.PI * 2; // sunrise at 6
-  sun.position.set(Math.cos(angle) * 60, Math.sin(angle) * 60, 20);
-  const dayness = Math.max(0, Math.sin(angle));
-  sun.intensity = 1.6 * dayness;
-  hemi.intensity = 0.15 + 0.55 * dayness;
-  const skyCol = new THREE.Color().lerpColors(new THREE.Color(0x0b1026), new THREE.Color(0x87b5d9), dayness);
-  scene.background = skyCol;
-  scene.fog.color = skyCol;
-}
-
-// ---------- input: modes, sculpt, build ----------
-let mode = 'view';
+const GAME_HOURS_PER_SEC = 0.1; // 4-minute full day
+let harvested = 0;
+let mode = 'play';
 let brushDir = 1;
 let buildType = 'wall';
+let camYaw = 0.6, camPitch = 0.42, camDist = 9;
+const input = { fwd: 0, side: 0, run: false };
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 let ghost = null;
 let sculpting = false;
+let dragging = false;
 
 const $ = id => document.getElementById(id);
+function toast(msg) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.style.opacity = 1;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => (el.style.opacity = 0), 1600);
+}
+
+// ---------- modes ----------
+const HINTS = {
+  play: 'WASD move · Shift run · drag to look · scroll zoom · E plant/harvest at the farm',
+  orbit: 'Drag to orbit · scroll zoom · right-drag pan',
+  sculpt: 'Left-drag to sculpt terrain · scroll zoom',
+  build: 'Click to place · right-click to remove · scroll zoom',
+};
 function setMode(m) {
   mode = m;
-  ['view', 'sculpt', 'build'].forEach(x => $('mode-' + x).classList.toggle('active', x === m));
+  ['play', 'orbit', 'sculpt', 'build'].forEach(x => $('mode-' + x).classList.toggle('active', x === m));
   $('sculpt-opts').hidden = m !== 'sculpt';
   $('build-opts').hidden = m !== 'build';
-  controls.enableRotate = m === 'view';
-  controls.enablePan = m === 'view';
+  $('hint').textContent = HINTS[m];
+  controls.enabled = m !== 'play';
+  controls.enableRotate = m === 'orbit';
+  controls.enablePan = m === 'orbit';
+  if (m !== 'play') controls.target.set(player.x, terrainHeightAt(player.x, player.z) + 1, player.z);
   if (ghost) { scene.remove(ghost); ghost = null; }
   if (m === 'build') { ghost = makeModuleMesh(buildType, true); scene.add(ghost); }
 }
-$('mode-view').onclick = () => setMode('view');
+$('mode-play').onclick = () => setMode('play');
+$('mode-orbit').onclick = () => setMode('orbit');
 $('mode-sculpt').onclick = () => setMode('sculpt');
 $('mode-build').onclick = () => setMode('build');
 $('brush-raise').onclick = () => { brushDir = 1; $('brush-raise').classList.add('active'); $('brush-lower').classList.remove('active'); };
@@ -85,16 +97,37 @@ for (const t of ['wall', 'floor', 'roof']) {
     if (ghost) { scene.remove(ghost); ghost = makeModuleMesh(t, true); scene.add(ghost); }
   };
 }
-$('save').onclick = () => {
-  saveGame(dayTime);
-  $('status').textContent = 'Saved.';
-};
+$('save').onclick = () => { saveGame(dayTime, player, harvested); toast('Game saved'); };
 $('load').onclick = () => {
-  const t = loadGame();
-  if (t === null) { $('status').textContent = 'No valid save found.'; return; }
-  dayTime = t;
-  $('status').textContent = 'Loaded.';
+  const s = loadGame();
+  if (!s) { toast('No valid save found'); return; }
+  dayTime = s.dayTime;
+  player.x = s.player.x; player.z = s.player.z;
+  harvested = s.harvested;
+  toast('Game loaded');
 };
+
+// ---------- input ----------
+const KEYMAP = { KeyW: 'fwd+', KeyS: 'fwd-', KeyD: 'side+', KeyA: 'side-' };
+addEventListener('keydown', e => {
+  if (e.repeat) return;
+  if (e.code in KEYMAP) {
+    const k = KEYMAP[e.code];
+    input[k.slice(0, -1)] += k.endsWith('+') ? 1 : -1;
+  } else if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') input.run = true;
+  else if (e.code === 'KeyE' && mode === 'play') {
+    const msg = interactFarm(player.x, player.z);
+    if (msg === 'harvest') { harvested++; toast('Harvested! 🎃'); }
+    else if (msg) toast(msg);
+  }
+});
+addEventListener('keyup', e => {
+  if (e.code in KEYMAP) {
+    const k = KEYMAP[e.code];
+    input[k.slice(0, -1)] -= k.endsWith('+') ? 1 : -1;
+  } else if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') input.run = false;
+});
+addEventListener('blur', () => { input.fwd = 0; input.side = 0; input.run = false; });
 
 function pickTerrain(e) {
   pointer.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
@@ -103,7 +136,8 @@ function pickTerrain(e) {
 }
 
 renderer.domElement.addEventListener('pointerdown', e => {
-  if (mode === 'sculpt' && e.button === 0) {
+  if (mode === 'play' && e.button === 0) dragging = true;
+  else if (mode === 'sculpt' && e.button === 0) {
     sculpting = true;
     const hit = pickTerrain(e);
     if (hit) { sculptAt(hit.point, brushDir); reglueModules(); }
@@ -119,9 +153,12 @@ renderer.domElement.addEventListener('pointerdown', e => {
     }
   }
 });
-addEventListener('pointerup', () => (sculpting = false));
+addEventListener('pointerup', () => { sculpting = false; dragging = false; });
 renderer.domElement.addEventListener('pointermove', e => {
-  if (mode === 'sculpt' && sculpting) {
+  if (mode === 'play' && dragging) {
+    camYaw -= e.movementX * 0.0055;
+    camPitch = Math.max(0.08, Math.min(1.25, camPitch + e.movementY * 0.0045));
+  } else if (mode === 'sculpt' && sculpting) {
     const hit = pickTerrain(e);
     if (hit) { sculptAt(hit.point, brushDir); reglueModules(); }
   } else if (mode === 'build' && ghost) {
@@ -132,7 +169,25 @@ renderer.domElement.addEventListener('pointermove', e => {
     }
   }
 });
+renderer.domElement.addEventListener('wheel', e => {
+  if (mode === 'play') camDist = Math.max(4, Math.min(18, camDist + e.deltaY * 0.01));
+});
 renderer.domElement.addEventListener('contextmenu', e => { if (mode === 'build') e.preventDefault(); });
+
+// ---------- third-person camera ----------
+const camTarget = new THREE.Vector3();
+function updateCamera() {
+  camTarget.set(player.x, terrainHeightAt(player.x, player.z) + 1.6, player.z);
+  const cp = Math.cos(camPitch);
+  camera.position.set(
+    camTarget.x + Math.sin(camYaw) * cp * camDist,
+    camTarget.y + Math.sin(camPitch) * camDist,
+    camTarget.z + Math.cos(camYaw) * cp * camDist
+  );
+  const floor = terrainHeightAt(camera.position.x, camera.position.z) + 0.5;
+  if (camera.position.y < floor) camera.position.y = floor;
+  camera.lookAt(camTarget);
+}
 
 // ---------- main loop ----------
 const clock = new THREE.Clock();
@@ -140,14 +195,23 @@ function tick() {
   requestAnimationFrame(tick);
   const dt = Math.min(clock.getDelta(), 0.1);
   dayTime = (dayTime + dt * GAME_HOURS_PER_SEC) % 24;
-  updateSun();
+  const dayness = updateDay(dayTime, scene);
+  house.userData.light.intensity = dayness < 0.25 ? 2.2 : 0;
+
+  if (mode === 'play') updatePlayer(player, dt, input, camYaw);
+  else player.group.position.set(player.x, terrainHeightAt(player.x, player.z), player.z);
   for (const n of npcs) updateNPC(n, dt, dayTime);
+  updateFarm(dt);
+
   const hh = String(Math.floor(dayTime)).padStart(2, '0');
   const mm = String(Math.floor((dayTime % 1) * 60)).padStart(2, '0');
-  $('status').textContent =
-    `Time ${hh}:${mm}\n` + npcs.map(n => `${n.name} (${n.role}): ${n.status}`).join('\n');
-  controls.update();
+  $('clock').textContent = `${hh}:${mm}`;
+  $('harvest').textContent = harvested;
+  $('npc-status').textContent = npcs.map(n => `${n.name} (${n.role}): ${n.status}`).join('\n');
+
+  if (mode === 'play') updateCamera();
+  else controls.update();
   renderer.render(scene, camera);
 }
-setMode('view');
+setMode('play');
 tick();

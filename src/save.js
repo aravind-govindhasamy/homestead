@@ -1,16 +1,18 @@
 import { pos, refreshTerrain, SIZE } from './terrain.js';
 import { MODULE_DEFS, modules, placeModule, clearModules } from './buildings.js';
 import { npcs } from './npcs.js';
+import { plots } from './farm.js';
 
 // ponytail: localStorage only; swap for a backend/Firebase when cloud sync is real
 const SAVE_KEY = 'homestead-save';
+const VERSION = 2;
 const HALF = SIZE / 2;
 
 // localStorage is a trust boundary: another tab/extension can write anything here,
 // so validate shape and clamp values before feeding it to the scene
 function isValidSave(d) {
   return (
-    d && typeof d === 'object' &&
+    d && typeof d === 'object' && d.v === VERSION &&
     Array.isArray(d.heights) && d.heights.length === pos.count &&
     d.heights.every(h => Number.isFinite(h) && Math.abs(h) <= 100) &&
     Array.isArray(d.modules) && d.modules.length <= 10000 &&
@@ -20,22 +22,31 @@ function isValidSave(d) {
     Array.isArray(d.npcs) && d.npcs.length === npcs.length &&
     d.npcs.every((s, i) => s && Number.isFinite(s.x) && Number.isFinite(s.z) &&
       Number.isInteger(s.taskIdx) && s.taskIdx >= 0 && s.taskIdx < npcs[i].tasks.length) &&
+    Array.isArray(d.plots) && d.plots.length === plots.length &&
+    d.plots.every(p => p && [0, 1, 2].includes(p.s) && Number.isFinite(p.t) && p.t >= 0 && p.t <= 10000) &&
+    d.player && Number.isFinite(d.player.x) && Math.abs(d.player.x) <= HALF &&
+    Number.isFinite(d.player.z) && Math.abs(d.player.z) <= HALF &&
+    Number.isInteger(d.harvested) && d.harvested >= 0 &&
     Number.isFinite(d.dayTime) && d.dayTime >= 0 && d.dayTime < 24
   );
 }
 
-export function saveGame(dayTime) {
+export function saveGame(dayTime, player, harvested) {
   const heights = Array.from({ length: pos.count }, (_, i) => Math.round(pos.getY(i) * 100) / 100);
   const data = {
+    v: VERSION,
     heights,
     modules: modules.map(m => ({ type: m.type, x: m.x, z: m.z })),
     npcs: npcs.map(n => ({ x: n.x, z: n.z, taskIdx: n.taskIdx })),
+    plots: plots.map(p => ({ s: p.state, t: Math.round(p.t * 10) / 10 })),
+    player: { x: player.x, z: player.z },
+    harvested,
     dayTime,
   };
   localStorage.setItem(SAVE_KEY, JSON.stringify(data));
 }
 
-// returns restored dayTime, or null if there is no valid save
+// returns {dayTime, player, harvested}, or null if there is no valid save
 export function loadGame() {
   const raw = localStorage.getItem(SAVE_KEY);
   if (!raw) return null;
@@ -48,5 +59,6 @@ export function loadGame() {
   clearModules();
   data.modules.forEach(m => placeModule(m.type, m.x, m.z));
   data.npcs.forEach((s, i) => Object.assign(npcs[i], { x: s.x, z: s.z, taskIdx: s.taskIdx }));
-  return data.dayTime;
+  data.plots.forEach((s, i) => Object.assign(plots[i], { state: s.s, t: s.t }));
+  return { dayTime: data.dayTime, player: data.player, harvested: data.harvested };
 }

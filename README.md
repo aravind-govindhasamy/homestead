@@ -9,10 +9,13 @@ Inspired by the "Last of John's Home" concept; design research lives in
 
 ## Features
 
-- **Terrain** — procedural value-noise heightmap with height-based coloring, sculptable in-app with a raise/lower brush
-- **Building** — grid-snapped wall/floor/roof modules with ghost preview; starter cabin included
-- **NPCs** — Alice (farmer) and Bob (beekeeper) walk between field, hives, pond, and home on a task schedule with awake hours
-- **Day/night** — 2-minute full day drives sun angle, light intensity, and sky color
+- **Third-person play** — WASD + camera-orbit control of a stylized character with walk/run animation
+- **Modern home** — flat-roof house with glass front, wood accent wall, deck, and a warm interior light that comes on at dusk
+- **Farming** — plant crops with E, watch them grow, harvest when ready; harvest counter in the HUD
+- **Terrain** — procedural value-noise heightmap with blended coloring, flattened pads for house/farm/pond, sculptable with a raise/lower brush
+- **Environment** — atmospheric sky (three.js Sky + ACES tone mapping), day/night cycle, instanced trees, rocks, flowers, a pond, and beehives
+- **Building** — grid-snapped wall/floor/roof modules with ghost preview
+- **NPCs** — Alice (farmer) and Bob (beekeeper) walk between farm, hives, pond, and home on a schedule with awake hours
 - **Save/Load** — world state persists to localStorage (validated on load)
 
 ## Quickstart
@@ -29,21 +32,26 @@ npm run preview  # serve the built dist/
 ## Controls
 
 | Mode | Action |
-|------|--------|
-| **View** | Left-drag orbit, right-drag pan, wheel zoom |
+| ---- | ------ |
+| **Play** | WASD move, Shift run, left-drag look, wheel zoom, E plant/harvest |
+| **Orbit** | Free camera: drag orbit, right-drag pan, wheel zoom |
 | **Sculpt** | Left-drag to raise/lower terrain (Raise/Lower toggle in panel) |
 | **Build** | Click to place the selected module, right-click to remove one |
 | Any | Save / Load buttons persist and restore the world |
 
 ## Project structure
 
-```
-index.html          UI overlay + canvas host
-src/main.js         scene, lights, day clock, input modes, render loop
-src/terrain.js      heightmap generation, sculpting, height sampling
-src/buildings.js    module definitions, snapping, place/remove
+```text
+index.html          HUD overlay + canvas host
+src/main.js         scene assembly, input modes, third-person camera, render loop
+src/terrain.js      heightmap generation, flattened pads, sculpting, height sampling
+src/environment.js  sky, sun/day cycle, renderer config, instanced scenery, pond, fence
+src/player.js       character factory (shared with NPCs), third-person movement
+src/house.js        modern house composition
+src/farm.js         plots, crop growth, plant/harvest interaction
+src/buildings.js    build-mode module definitions, snapping, place/remove
 src/npcs.js         NPC roster and waypoint state machine
-src/save.js         localStorage persistence with validation
+src/save.js         localStorage persistence with validation (schema v2)
 ```
 
 More detail in [CLAUDE.md](CLAUDE.md) (architecture and conventions) and

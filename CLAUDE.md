@@ -13,11 +13,18 @@ Design source: `deep-research-report.md`.
 
 One module per domain, all state lives in the module that owns it:
 
-- `src/terrain.js` — value-noise heightmap plane, `terrainHeightAt`, `sculptAt`, `refreshTerrain`
-- `src/buildings.js` — module defs (wall/floor/roof), grid snap, place/remove, `reglueModules` after terrain edits
-- `src/npcs.js` — NPC list + waypoint FSM (`updateNPC`), task points
-- `src/save.js` — localStorage save/load; **all loaded data is validated in `isValidSave` — keep that in sync with any schema change**
-- `src/main.js` — scene/renderer/lights, day clock, input modes (View/Sculpt/Build), UI wiring, render loop
+- `src/terrain.js` — value-noise heightmap, `SPOTS` flattened pads (house/farm/pond/hives), `terrainHeightAt`, `sculptAt`
+- `src/environment.js` — Sky addon + sun/hemi lights, `updateDay(dayTime)`, renderer config (ACES), instanced trees/rocks/flowers, pond water, beehives, farm fence
+- `src/player.js` — `createCharacter` (shared with NPCs), `updatePlayer` (WASD relative to camera yaw), limb-swing animation
+- `src/house.js` — modern house group; `userData.light` is the interior evening light
+- `src/farm.js` — `plots` state machine (empty/growing/ready), `interactFarm` for E-key plant/harvest
+- `src/buildings.js` — build-mode module defs (wall/floor/roof), grid snap, place/remove, `reglueModules` after terrain edits
+- `src/npcs.js` — NPC list + waypoint FSM (`updateNPC`), task points derived from `SPOTS`
+- `src/save.js` — localStorage save/load, schema v2; **all loaded data is validated in `isValidSave` — keep that in sync with any schema change**
+- `src/main.js` — scene assembly, input modes (Play/Orbit/Sculpt/Build), third-person camera, HUD wiring, render loop
+
+`npm test` runs `test/smoke.mjs` — a node-only logic check (terrain, farm growth,
+player movement, NPC schedule). Run it after changing any of those modules.
 
 ## Conventions
 

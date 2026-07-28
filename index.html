@@ -8,35 +8,59 @@
         content="default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:" />
   <title>Homestead</title>
   <style>
-    body { margin: 0; overflow: hidden; font-family: system-ui, sans-serif; }
-    #ui {
-      position: fixed; top: 10px; left: 10px; z-index: 1;
-      background: rgba(0,0,0,.6); color: #eee; padding: 10px 12px;
-      border-radius: 8px; font-size: 13px; user-select: none;
+    :root { --panel: rgba(16, 20, 24, .72); --accent: #6fcf5f; }
+    body { margin: 0; overflow: hidden; font-family: system-ui, -apple-system, sans-serif; color: #eef2f0; }
+    .panel {
+      position: fixed; z-index: 1; background: var(--panel); backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,.08); border-radius: 14px; padding: 12px 14px;
+      font-size: 13px; user-select: none;
     }
-    #ui button { margin: 2px; cursor: pointer; }
-    #ui button.active { background: #7c5; }
-    #status { margin-top: 6px; white-space: pre-line; }
+    #hud { top: 14px; left: 14px; }
+    #clockpane { top: 14px; right: 14px; text-align: right; }
+    #hint { bottom: 14px; left: 50%; transform: translateX(-50%); font-size: 12px; opacity: .85; white-space: nowrap; }
+    #toast {
+      position: fixed; z-index: 2; top: 22%; left: 50%; transform: translateX(-50%);
+      background: var(--panel); backdrop-filter: blur(10px); border-radius: 12px;
+      padding: 10px 18px; font-size: 15px; opacity: 0; transition: opacity .25s; pointer-events: none;
+    }
+    button {
+      margin: 2px; padding: 5px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,.15);
+      background: rgba(255,255,255,.07); color: #eef2f0; font-size: 12px; cursor: pointer;
+    }
+    button:hover { background: rgba(255,255,255,.16); }
+    button.active { background: var(--accent); border-color: var(--accent); color: #102410; font-weight: 600; }
+    #clock { font-size: 22px; font-weight: 600; letter-spacing: 1px; }
+    #harvest { color: var(--accent); font-weight: 600; }
+    #npc-status { margin-top: 8px; opacity: .85; white-space: pre-line; line-height: 1.5; }
+    .row { margin-top: 6px; }
   </style>
 </head>
 <body>
-  <div id="ui">
+  <div id="hud" class="panel">
     <div>
-      <button id="mode-view" class="active">View</button>
+      <button id="mode-play" class="active">Play</button>
+      <button id="mode-orbit">Orbit</button>
       <button id="mode-sculpt">Sculpt</button>
       <button id="mode-build">Build</button>
+    </div>
+    <div class="row">
       <button id="save">Save</button>
       <button id="load">Load</button>
     </div>
-    <div id="sculpt-opts" hidden>
-      Brush: <button id="brush-lower">Lower</button><button id="brush-raise" class="active">Raise</button>
+    <div id="sculpt-opts" class="row" hidden>
+      <button id="brush-raise" class="active">Raise</button><button id="brush-lower">Lower</button>
     </div>
-    <div id="build-opts" hidden>
-      Module: <button id="mod-wall" class="active">Wall</button><button id="mod-floor">Floor</button><button id="mod-roof">Roof</button>
-      <span>(click = place, right-click = remove)</span>
+    <div id="build-opts" class="row" hidden>
+      <button id="mod-wall" class="active">Wall</button><button id="mod-floor">Floor</button><button id="mod-roof">Roof</button>
     </div>
-    <div id="status"></div>
+    <div id="npc-status"></div>
   </div>
+  <div id="clockpane" class="panel">
+    <div id="clock">08:00</div>
+    <div>Harvested: <span id="harvest">0</span> 🎃</div>
+  </div>
+  <div id="hint" class="panel">WASD move · Shift run · drag to look · scroll zoom · E plant/harvest at the farm</div>
+  <div id="toast"></div>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
