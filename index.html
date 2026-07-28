@@ -83,7 +83,8 @@
     <div id="hunger-bar"><div id="hunger-fill"></div></div>
     <div style="margin-top:5px">Harvested: <span id="harvest">0</span> 🎃 · Fish: <span id="fish-count">0</span> 🎣 · <span id="farm-level" style="opacity:.7">Lv.1</span> 🌾</div>
   </div>
-  <div id="hint" class="panel">WASD move · Shift run · drag look · E: farm plant/harvest, sleep at home when dark · rest by the fire to recover</div>
+  <div id="e-hint" style="position:fixed;z-index:2;bottom:58px;left:50%;transform:translateX(-50%);font-size:13px;background:rgba(16,20,24,.7);backdrop-filter:blur(8px);border-radius:20px;padding:6px 16px;pointer-events:none;transition:opacity .2s;opacity:0;border:1px solid rgba(255,255,255,.1)"></div>
+  <div id="hint" class="panel">WASD move · Shift run · drag look · E interact · drag to look</div>
   <div id="toast"></div>
   <script type="module" src="/src/main.js"></script>
 </body>

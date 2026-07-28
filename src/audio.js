@@ -48,6 +48,21 @@ export function updateAudio(t, dayness, rainAmt, nearFire) {
   gainRain.gain.setTargetAtTime(rainAmt * 0.15, now, 0.8);
   gainCricket.gain.value = night * (0.01 + Math.sin(t * 7.8) * 0.004);
   gainFire.gain.setTargetAtTime(nearFire && dayness < 0.35 ? 0.05 : 0, now, 0.5);
+  // morning birdsong: random chirps 6am-9am
+  if (dayness > 0.3 && dayness < 0.85 && !rainAmt && Math.random() < 0.0005) playBirdChirp();
+}
+
+function playBirdChirp() {
+  if (!ctx || ctx.state === 'suspended') return;
+  const g = ctx.createGain(); g.gain.setValueAtTime(0.06, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+  const o = ctx.createOscillator();
+  o.type = 'sine';
+  const base = 2200 + Math.random() * 800;
+  o.frequency.setValueAtTime(base, ctx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(base * (1.1 + Math.random() * 0.4), ctx.currentTime + 0.15);
+  o.frequency.exponentialRampToValueAtTime(base * 0.9, ctx.currentTime + 0.35);
+  o.connect(g); g.connect(ctx.destination);
+  o.start(); o.stop(ctx.currentTime + 0.35);
 }
 
 export function setMuted(muted) {

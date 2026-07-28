@@ -12,7 +12,7 @@ import {
   CAMPFIRE, weather, getSeason, SEASONS,
 } from './environment.js';
 import { createHouse, groundAt } from './house.js';
-import { createFarm, updateFarm, interactFarm } from './farm.js';
+import { createFarm, updateFarm, interactFarm, plots } from './farm.js';
 import { createPlayer, updatePlayer } from './player.js';
 import { createDog, updateDog } from './dog.js';
 import {
@@ -82,7 +82,9 @@ let wasRaining = false;
 let hunger = 100, fishing = false, fishTimer = 0, fishCount = 0;
 let farmSkill = 0, fishSkill = 0;
 let stepTimer = 0;
-let lastNpcToast = -60, lastWildlifeMin = -1, lastFestSeason = -1;
+let lastNpcToast = -60, lastWildlifeMin = -1, lastFestSeason = -1, lastGiftDay = 0;
+const npcGifts = []; // {x, z, name, claimed}
+const particleBursts = []; // {pts, geo, mat, vel, life}
 let muted = false;
 const achievements = new Set();
 const input = { fwd: 0, side: 0, run: false };
@@ -110,6 +112,18 @@ function achieve(id, msg) {
   el.style.color = '#ffd700';
   clearTimeout(el._t);
   el._t = setTimeout(() => { el.style.opacity = 0; el.style.color = ''; }, 3800);
+}
+
+function addBurst(x, y, z, color) {
+  const count = 18;
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) pos.set([x, y, z], i * 3);
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({ color, size: 6, sizeAttenuation: false, transparent: true, depthWrite: false });
+  const vel = Array.from({ length: count }, () => new THREE.Vector3((Math.random() - .5) * 5, Math.random() * 5 + 2, (Math.random() - .5) * 5));
+  scene.add(new THREE.Points(geo, mat));
+  particleBursts.push({ pts: scene.children[scene.children.length - 1], geo, mat, vel, life: 0 });
 }
 
 // start audio on first interaction (browsers block AudioContext before gesture)
@@ -234,6 +248,7 @@ addEventListener('keydown', e => {
       const msg = interactFarm(player.x, player.z);
       if (msg && msg.startsWith('harvest:')) {
         harvested++; energy -= 3; toast(`Harvested ${msg.slice(8)}! 🎃`);
+        addBurst(player.x, groundAt(player.x, player.z) + 0.5, player.z, 0xf3a712);
         if (harvested === 1) achieve('harvest', 'First Harvest!');
         const prevLevel = Math.floor(farmSkill);
         farmSkill = Math.min(10, farmSkill + 0.5);
@@ -400,6 +415,36 @@ function tick() {
     : energy > 35 ? (wellFed ? '🙂' : '😐')
     : energy > 12 ? '😐' : '😫';
 
+  // particle burst animation
+  for (let i = particleBursts.length - 1; i >= 0; i--) {
+    const b = particleBursts[i];
+    b.life += dt;
+    if (b.life > 1.2) { scene.remove(b.pts); b.geo.dispose(); b.mat.dispose(); particleBursts.splice(i, 1); continue; }
+    const pp = b.pts.geometry.attributes.position;
+    for (let j = 0; j < b.vel.length; j++) {
+      b.vel[j].y -= 9.8 * dt;
+      pp.setXYZ(j, pp.getX(j) + b.vel[j].x * dt, pp.getY(j) + b.vel[j].y * dt, pp.getZ(j) + b.vel[j].z * dt);
+    }
+    pp.needsUpdate = true;
+    b.mat.opacity = Math.max(0, 1 - b.life * 1.3);
+  }
+
+  // NPC gifts: Alice/Bob leave a surprise once per day (40% chance)
+  if (day > lastGiftDay) {
+    lastGiftDay = day;
+    if (Math.random() < 0.4) {
+      const isAlice = Math.random() < 0.5;
+      npcGifts.push({ x: isAlice ? SPOTS.farm.x : SPOTS.hives.x, z: isAlice ? SPOTS.farm.z : SPOTS.hives.z, name: isAlice ? 'crops from Alice 🌾' : 'honey from Bob 🍯', claimed: false });
+    }
+  }
+  for (const gift of npcGifts.filter(g => !g.claimed)) {
+    if (Math.hypot(player.x - gift.x, player.z - gift.z) < 3.5) {
+      gift.claimed = true; harvested++;
+      toast(`Found ${gift.name}! 🎁`);
+      addBurst(gift.x, terrainHeightAt(gift.x, gift.z) + 0.4, gift.z, 0xffd700);
+    }
+  }
+
   // rare wildlife sighting once per minute, only outdoors in daylight
   const curMin = Math.floor(t / 60);
   if (curMin !== lastWildlifeMin && Math.random() < 0.25 && dayness > 0.15 && t > 20) {
@@ -412,6 +457,30 @@ function tick() {
       '🦔 A hedgehog snuffles through the garden.',
     ];
     toast(wildlife[Math.floor(Math.random() * wildlife.length)], 2400);
+  }
+
+  // contextual E-key hint
+  if (mode === 'play') {
+    const isNightHint = dayTime >= 20 || dayTime < 5;
+    let eCtx = null;
+    if (fishing) eCtx = '🎣 Waiting…';
+    else if (npcs.some(n => Math.hypot(n.x - player.x, n.z - player.z) < 2.5)) eCtx = '💬 Talk';
+    else if (Math.hypot(player.x - dog.x, player.z - dog.z) < 2.2) eCtx = '🐕 Pet Biscuit';
+    else if (npcGifts.some(g => !g.claimed && Math.hypot(player.x - g.x, player.z - g.z) < 3.5)) eCtx = '🎁 Collect gift';
+    else if (!isNightHint && Math.hypot(player.x - CAMPFIRE.x, player.z - CAMPFIRE.z) < 4 && dayness < 0.45 && hunger < 90) eCtx = '🍲 Cook at fire';
+    else if (isNightHint && Math.hypot(player.x - CAMPFIRE.x, player.z - CAMPFIRE.z) < 5) eCtx = '⭐ Gaze at stars';
+    else if (Math.hypot(player.x + 15, player.z + 10.6) < 3) eCtx = '🪷 Sit by pond';
+    else if (Math.hypot(player.x + 5.55, player.z + 1.5) < 2.5) eCtx = '📖 Read';
+    else if (Math.hypot(player.x - SPOTS.pond.x, player.z - SPOTS.pond.z) < SPOTS.pond.r + 3) eCtx = '🎣 Fish';
+    else if (Math.hypot(player.x - (SPOTS.house.x + 2.2), player.z - (SPOTS.house.z - 3.6)) < 3 && hunger < 95) eCtx = '🍲 Cook';
+    else if (isNightHint && Math.hypot(player.x, player.z) < 9) eCtx = '💤 Sleep';
+    else {
+      const np = plots.reduce((b, p) => Math.hypot(p.x-player.x,p.z-player.z) < Math.hypot(b.x-player.x,b.z-player.z) ? p : b, plots[0]);
+      if (Math.hypot(np.x - player.x, np.z - player.z) < 2.4) eCtx = np.state === 0 ? '🌱 Plant' : np.state === 2 ? '🎃 Harvest' : '👀 Growing…';
+    }
+    const eEl = $('e-hint');
+    eEl.textContent = eCtx ? `[E] ${eCtx}` : '';
+    eEl.style.opacity = eCtx ? '1' : '0';
   }
 
   const hh = String(Math.floor(dayTime)).padStart(2, '0');
