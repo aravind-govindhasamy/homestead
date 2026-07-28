@@ -28,11 +28,14 @@ export function updateDay(dayTime, scene) {
   sky.material.uniforms.sunPosition.value.copy(sunDir);
   sun.position.copy(sunDir).multiplyScalar(90);
   const dayness = Math.max(0, sunDir.y);
-  sun.intensity = 3 * dayness;
+  const clear = 1 - weather.rain * 0.6;
+  sun.intensity = 3 * dayness * clear;
   moon.intensity = 0.3 * Math.max(0, 1 - dayness * 4);
   moon.position.set(-sunDir.x * 80, Math.max(25, -sunDir.y * 80), -sunDir.z * 80);
-  hemi.intensity = 0.12 + 0.55 * dayness;
-  scene.fog.color.lerpColors(new THREE.Color(0x0a0e1c), new THREE.Color(0xbfd4e0), dayness);
+  hemi.intensity = (0.12 + 0.55 * dayness) * (1 - weather.rain * 0.25);
+  sky.material.uniforms.turbidity.value = 6 + weather.rain * 14;
+  scene.fog.far = 320 - weather.rain * 150;
+  scene.fog.color.lerpColors(new THREE.Color(0x0a0e1c), new THREE.Color(0xbfd4e0), dayness * (1 - weather.rain * 0.3));
   return dayness;
 }
 
@@ -62,8 +65,12 @@ function scatter(count, place, filter = null) {
 }
 
 // dynamic bits driven by updateEnvironment
-let waterGeo, clouds = [], bees = [], fireflies, fireflyBase, starsMat, flame, fireLight;
+let waterGeo, clouds = [], bees = [], butterflies = [], fireflies, fireflyBase, starsMat, flame, fireLight;
+let rainPts, rainVel = [];
 export const CAMPFIRE = new THREE.Vector3(8.5, 0, 8.5);
+
+// ponytail: coin-flip weather, no fronts or forecast; add a pressure sim never
+export const weather = { rain: 0, target: 0, timer: 20 };
 
 export function buildScenery() {
   const group = new THREE.Group();
@@ -230,6 +237,33 @@ export function buildScenery() {
     group.add(bee);
   }
 
+  // butterflies fluttering over the meadow by day
+  const bfCols = [0xf2b5d4, 0xfff3c4, 0xa8d8ea, 0xffb347];
+  for (let i = 0; i < 8; i++) {
+    const bf = new THREE.Mesh(
+      new THREE.SphereGeometry(0.09, 6, 5),
+      new THREE.MeshStandardMaterial({ color: bfCols[i % 4], emissive: bfCols[i % 4], emissiveIntensity: 0.25 }));
+    bf.scale.set(1.4, 0.35, 1);
+    const cx = rand(-35, 35), cz = rand(-35, 35);
+    bf.userData = { phi: rand(0, 7), r: rand(2, 6), w: rand(0.4, 0.9), cx, cz };
+    butterflies.push(bf);
+    group.add(bf);
+  }
+
+  // rain: recycled particle box that follows nobody — big enough to cover the play area
+  const N_RAIN = 1400;
+  const rp = new Float32Array(N_RAIN * 3);
+  for (let i = 0; i < N_RAIN; i++) {
+    rp.set([rand(-45, 45), rand(0, 30), rand(-45, 45)], i * 3);
+    rainVel.push(rand(18, 26));
+  }
+  const rainGeo = new THREE.BufferGeometry();
+  rainGeo.setAttribute('position', new THREE.BufferAttribute(rp, 3));
+  rainPts = new THREE.Points(rainGeo, new THREE.PointsMaterial({
+    color: 0x9db8cc, size: 1.8, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false,
+  }));
+  group.add(rainPts);
+
   // farm fence
   const { x: fx, z: fz } = SPOTS.farm;
   const W = 7, D = 5;
@@ -305,6 +339,26 @@ export function buildScenery() {
 }
 
 export function updateEnvironment(dt, t, dayness) {
+  // weather: flip a coin every so often, ease toward the target
+  weather.timer -= dt;
+  if (weather.timer <= 0) {
+    weather.target = weather.target > 0 ? 0 : (Math.random() < 0.3 ? 1 : 0);
+    weather.timer = weather.target ? rand(25, 45) : rand(40, 90);
+  }
+  weather.rain += (weather.target - weather.rain) * Math.min(1, dt * 0.4);
+
+  // rain particles fall and recycle
+  rainPts.material.opacity = weather.rain * 0.55;
+  if (weather.rain > 0.02) {
+    const rpp = rainPts.geometry.attributes.position;
+    for (let i = 0; i < rainVel.length; i++) {
+      let y = rpp.getY(i) - rainVel[i] * dt;
+      if (y < 0) y = 28;
+      rpp.setY(i, y);
+    }
+    rpp.needsUpdate = true;
+  }
+
   // water ripple
   const wp = waterGeo.attributes.position;
   for (let i = 0; i < wp.count; i++) {
@@ -319,8 +373,21 @@ export function updateEnvironment(dt, t, dayness) {
     if (c.position.x > SIZE / 2 + 30) c.position.x = -SIZE / 2 - 30;
   }
 
-  // bees by day
-  const beesOut = dayness > 0.12;
+  // butterflies by fair day, sheltering in rain
+  const bfOut = dayness > 0.15 && weather.rain < 0.5;
+  for (const bf of butterflies) {
+    bf.visible = bfOut;
+    if (bfOut) {
+      const u = bf.userData;
+      const x = u.cx + Math.cos(t * u.w + u.phi) * u.r;
+      const z = u.cz + Math.sin(t * u.w * 1.3 + u.phi) * u.r;
+      bf.position.set(x, terrainHeightAt(x, z) + 1 + Math.sin(t * 4 + u.phi) * 0.35, z);
+      bf.rotation.z = Math.sin(t * 14 + u.phi) * 0.6; // wing flutter
+    }
+  }
+
+  // bees by day, home in rain
+  const beesOut = dayness > 0.12 && weather.rain < 0.5;
   for (const b of bees) {
     b.visible = beesOut;
     if (beesOut) {

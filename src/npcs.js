@@ -41,6 +41,19 @@ export const npcs = [
   return { ...n, ...ch, x: 3 + i * 2, z: 5, status: '' };
 });
 
+// context-aware small talk for the E key
+export function getGreeting(n) {
+  const s = n.status;
+  if (s.includes('sleep')) return `${n.name} is fast asleep. 💤`;
+  if (s.includes('walking')) return `${n.name}: "Can't chat — ${s.replace('walking', 'heading')}!"`;
+  if (s.includes('crops')) return `${n.name}: "The crops are coming along beautifully this year."`;
+  if (s.includes('hives')) return `${n.name}: "The bees are happy today. That means good honey."`;
+  if (s.includes('lunch')) return `${n.name}: "Pull up a seat, there's plenty!"`;
+  if (s.includes('pond')) return `${n.name}: "Nothing beats the pond at this hour."`;
+  if (s.includes('fire')) return `${n.name}: "Come sit by the fire a while."`;
+  return `${n.name}: "Lovely day on the homestead, isn't it?"`;
+}
+
 function currentBlock(schedule, dayTime) {
   let cur = schedule[schedule.length - 1]; // before first block = still last night's block
   for (const b of schedule) if (dayTime >= b[0]) cur = b;

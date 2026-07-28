@@ -6,7 +6,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { terrain, terrainHeightAt, sculptAt } from './terrain.js';
 import {
-  sky, sun, moon, hemi, updateDay, configureRenderer, buildScenery, updateEnvironment, CAMPFIRE,
+  sky, sun, moon, hemi, updateDay, configureRenderer, buildScenery, updateEnvironment, CAMPFIRE, weather,
 } from './environment.js';
 import { createHouse, groundAt } from './house.js';
 import { createFarm, updateFarm, interactFarm } from './farm.js';
@@ -16,7 +16,7 @@ import {
   MODULE_DEFS, snap, moduleGroup, makeModuleMesh,
   placeModule, removeModuleByMesh, reglueModules,
 } from './buildings.js';
-import { npcs, updateNPC } from './npcs.js';
+import { npcs, updateNPC, getGreeting } from './npcs.js';
 import { saveGame, loadGame } from './save.js';
 
 // ---------- scene core ----------
@@ -65,6 +65,7 @@ let mode = 'play';
 let brushDir = 1;
 let buildType = 'wall';
 let camYaw = 0.6, camPitch = 0.42, camDist = 9;
+let wasRaining = false;
 const input = { fwd: 0, side: 0, run: false };
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
@@ -136,7 +137,10 @@ addEventListener('keydown', e => {
   } else if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') input.run = true;
   else if (e.code === 'KeyE' && mode === 'play') {
     const isNight = dayTime >= 20 || dayTime < 5;
-    if (isNight && Math.hypot(player.x, player.z) < 9) {
+    const friend = npcs.find(n => Math.hypot(n.x - player.x, n.z - player.z) < 2.5);
+    if (friend) {
+      toast(getGreeting(friend));
+    } else if (isNight && Math.hypot(player.x, player.z) < 9) {
       day++; dayTime = 6; energy = 100;
       toast(`Good morning! ☀️ Day ${day}`);
     } else if (energy < 3) {
@@ -227,7 +231,13 @@ function tick() {
   if (dayTime < prevTime) { day++; toast(`Day ${day} 🌙`); } // stayed up past midnight
   const dayness = updateDay(dayTime, scene);
   updateEnvironment(dt, t, dayness);
-  house.userData.light.intensity = dayness < 0.25 ? 2.2 : 0;
+  const lampOn = dayness < 0.25;
+  house.userData.light.intensity = lampOn ? 2.2 : 0;
+  house.userData.lampShade.material.emissiveIntensity = lampOn ? 1.6 : 0.15;
+  if (weather.target === 1 && !wasRaining && weather.rain > 0.1) {
+    wasRaining = true;
+    toast('Rain is rolling in — the crops will love this ☔');
+  } else if (weather.target === 0 && weather.rain < 0.1) wasRaining = false;
 
   let speed = 0;
   if (mode === 'play') {
@@ -238,7 +248,7 @@ function tick() {
   }
   updateDog(dog, dt, player, t);
   for (const n of npcs) updateNPC(n, dt, dayTime);
-  updateFarm(dt);
+  updateFarm(dt * (1 + weather.rain)); // rain waters the crops: double growth
 
   // work-life balance: moving costs energy, resting restores it —
   // faster by the campfire or with company
