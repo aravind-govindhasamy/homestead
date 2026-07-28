@@ -95,18 +95,28 @@ export function buildScenery() {
   trunks.count = t;
   group.add(trunks, canopies, pines);
 
+  // a few hand-placed trees framing the house
+  for (const [tx, tz, s] of [[9.5, -5, 1.3], [-9, -6.5, 1.1], [11.5, 3, 0.9]]) {
+    const ty = terrainHeightAt(tx, tz);
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.32, 2.4 * s, 6), trunkMat);
+    trunk.position.set(tx, ty + 1.2 * s, tz); trunk.castShadow = true;
+    const canopy = new THREE.Mesh(new THREE.IcosahedronGeometry(1.7 * s, 1), leafMat);
+    canopy.position.set(tx, ty + 2.9 * s, tz); canopy.castShadow = true;
+    group.add(trunk, canopy);
+  }
+
   // grass tufts everywhere the ground is grassy
-  const N_GRASS = 2600;
+  const N_GRASS = 4200;
   const grassMesh = new THREE.InstancedMesh(
-    new THREE.ConeGeometry(0.06, 0.38, 4),
-    new THREE.MeshStandardMaterial({ roughness: 1 }), N_GRASS);
+    new THREE.ConeGeometry(0.07, 0.45, 4),
+    new THREE.MeshStandardMaterial({ color: 0x69a144, roughness: 1 }), N_GRASS);
   const gCol = new THREE.Color();
   scatter(N_GRASS, ([x, y, z], i) => {
     dummy.position.set(x, y + 0.16, z);
     dummy.scale.set(1, rand(0.6, 1.6), 1);
     dummy.rotation.set(rand(-0.15, 0.15), rand(0, 7), rand(-0.15, 0.15));
     dummy.updateMatrix(); grassMesh.setMatrixAt(i, dummy.matrix);
-    gCol.setHSL(0.26 + rand(-0.03, 0.03), 0.5, 0.32 + rand(-0.06, 0.06));
+    gCol.setHSL(0.26, 0.3, rand(0.45, 0.75)); // multiplied with base green
     grassMesh.setColorAt(i, gCol);
   }, (x, y, z) =>
     y > 0 && y < 4 &&

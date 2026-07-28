@@ -24,7 +24,12 @@ One module per domain, all state lives in the module that owns it:
 - `src/main.js` — scene assembly, input modes (Play/Orbit/Sculpt/Build), third-person camera, HUD wiring, render loop
 
 `npm test` runs `test/smoke.mjs` — a node-only logic check (terrain, farm growth,
-player movement, NPC schedule). Run it after changing any of those modules.
+player movement, NPC schedule, dog). Run it after changing any of those modules.
+
+`npm run test:e2e` (dev server must be running) boots the app in headless system
+Chrome/Edge via puppeteer-core, fails on console errors/404s, and saves
+`test/screenshot-day.png` + `test/screenshot-night.png` — look at them after
+visual changes. `window.homestead.setTime(h)` is the debug hook it uses.
 
 ## Conventions
 

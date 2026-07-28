@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <!-- ws: needed for Vite HMR in dev; harmless in prod -->
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:" />
+        content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:" />
+  <link rel="icon" href="data:," />
   <title>Homestead</title>
   <style>
     :root { --panel: rgba(16, 20, 24, .72); --accent: #6fcf5f; }
