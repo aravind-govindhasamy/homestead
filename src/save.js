@@ -30,6 +30,7 @@ function isValidSave(d) {
     Number.isFinite(d.energy) && d.energy >= 0 && d.energy <= 100 &&
     (d.hunger === undefined || (Number.isFinite(d.hunger) && d.hunger >= 0 && d.hunger <= 100)) &&
     (d.farmSkill === undefined || (Number.isFinite(d.farmSkill) && d.farmSkill >= 0 && d.farmSkill <= 10)) &&
+    (d.fishSkill === undefined || (Number.isFinite(d.fishSkill) && d.fishSkill >= 0 && d.fishSkill <= 10)) &&
     Number.isFinite(d.dayTime) && d.dayTime >= 0 && d.dayTime < 24
   );
 }
@@ -48,6 +49,7 @@ export function saveGame(state) {
     energy: Math.round(state.energy),
     hunger: Math.round(state.hunger ?? 100),
     farmSkill: Math.round((state.farmSkill ?? 0) * 10) / 10,
+    fishSkill: Math.round((state.fishSkill ?? 0) * 10) / 10,
     dayTime: state.dayTime,
   };
   localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -67,5 +69,5 @@ export function loadGame() {
   data.modules.forEach(m => placeModule(m.type, m.x, m.z));
   data.npcs.forEach((s, i) => { if (npcs[i]) Object.assign(npcs[i], { x: s.x, z: s.z }); });
   data.plots.forEach((s, i) => Object.assign(plots[i], { state: s.s, t: s.t }));
-  return { dayTime: data.dayTime, player: data.player, harvested: data.harvested, day: data.day, energy: data.energy, hunger: data.hunger, farmSkill: data.farmSkill };
+  return { dayTime: data.dayTime, player: data.player, harvested: data.harvested, day: data.day, energy: data.energy, hunger: data.hunger, farmSkill: data.farmSkill, fishSkill: data.fishSkill };
 }

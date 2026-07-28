@@ -41,6 +41,9 @@ composer.addPass(new OutputPass());
 
 const house = createHouse();
 const player = createPlayer();
+const playerTorch = new THREE.PointLight(0xffc98a, 0, 7, 2);
+playerTorch.position.set(0.4, 1.7, 0);
+player.group.add(playerTorch);
 const dog = createDog();
 scene.add(sky, sun, moon, hemi, terrain, moduleGroup, house, createFarm(), buildScenery(),
   player.group, dog.group, ...npcs.map(n => n.group));
@@ -69,7 +72,7 @@ let buildType = 'wall';
 let camYaw = 0.6, camPitch = 0.42, camDist = 9;
 let wasRaining = false;
 let hunger = 100, fishing = false, fishTimer = 0, fishCount = 0;
-let farmSkill = 0;
+let farmSkill = 0, fishSkill = 0;
 let stepTimer = 0;
 let lastNpcToast = -60, lastWildlifeMin = -1;
 let muted = false;
@@ -138,7 +141,7 @@ for (const t of ['wall', 'floor', 'roof']) {
   };
 }
 $('mute').onclick = () => { muted = !muted; setMuted(muted); $('mute').textContent = muted ? '🔇' : '🔊'; };
-$('save').onclick = () => { saveGame({ dayTime, player, harvested, day, energy, hunger, farmSkill }); toast('Game saved'); };
+$('save').onclick = () => { saveGame({ dayTime, player, harvested, day, energy, hunger, farmSkill, fishSkill }); toast('Game saved'); };
 $('load').onclick = () => {
   const s = loadGame();
   if (!s) { toast('No valid save found'); return; }
@@ -149,6 +152,7 @@ $('load').onclick = () => {
   energy = s.energy;
   if (s.hunger !== undefined) hunger = s.hunger;
   if (s.farmSkill !== undefined) farmSkill = s.farmSkill;
+  if (s.fishSkill !== undefined) fishSkill = s.fishSkill;
   toast('Game loaded');
 };
 
@@ -163,6 +167,7 @@ addEventListener('keydown', e => {
   else if (e.code === 'KeyE' && mode === 'play') {
     const isNight = dayTime >= 20 || dayTime < 5;
     const friend = npcs.find(n => Math.hypot(n.x - player.x, n.z - player.z) < 2.5);
+    const nearDog = Math.hypot(player.x - dog.x, player.z - dog.z) < 2.2;
     const nearPond = Math.hypot(player.x - SPOTS.pond.x, player.z - SPOTS.pond.z) < SPOTS.pond.r + 3;
     const nearKitchen = Math.hypot(player.x - (SPOTS.house.x + 2.2), player.z - (SPOTS.house.z - 3.6)) < 3;
     const nearBench = Math.hypot(player.x + 15, player.z + 10.6) < 3;
@@ -187,6 +192,9 @@ addEventListener('keydown', e => {
       ];
       energy = Math.min(100, energy + 3);
       toast(stars[Math.floor(Math.random() * stars.length)], 2800);
+    } else if (nearDog) {
+      energy = Math.min(100, energy + 6);
+      toast('Biscuit wags his tail happily! 🐕');
     } else if (nearBench) {
       energy = Math.min(100, energy + 15); hunger = Math.min(100, hunger + 5);
       toast('Sat by the pond and watched the water. 🪷');
@@ -201,11 +209,14 @@ addEventListener('keydown', e => {
       energy = Math.min(100, energy + 5);
       toast(quotes[Math.floor(Math.random() * quotes.length)]);
     } else if (nearPond) {
-      fishing = true; fishTimer = 5 + Math.random() * 8;
+      fishing = true;
+      fishTimer = Math.max(2.5, 13 - fishSkill * 1.1) * Math.random() + 2;
       toast('Casting line… 🎣');
     } else if (isNight && Math.hypot(player.x, player.z) < 9) {
       day++; dayTime = 6; energy = 100; hunger = Math.min(100, hunger + 20);
-      toast(`Good morning! ☀️ Day ${day} — ${SEASONS[getSeason(day)]}`);
+      const dreams = ['💭 You dream of fields stretching to the horizon…', '💭 You dream of golden fish leaping in the sunlight…', '💭 You dream of fireflies dancing over the pond…', '💭 You dream of the smell of bread from the kitchen…'];
+      toast(dreams[day % dreams.length], 2200);
+      setTimeout(() => toast(`Good morning! ☀️ Day ${day} — ${SEASONS[getSeason(day)]}`), 2400);
     } else if (energy < 3) {
       toast('Too tired to work… rest by the fire or sleep at home');
     } else {
@@ -307,6 +318,7 @@ function tick() {
   updateEnvironment(dt, t, dayness, day);
   const lampOn = dayness < 0.25;
   house.userData.light.intensity = lampOn ? 2.2 : 0;
+  playerTorch.intensity = dayness < 0.2 ? 1.4 : 0;
   house.userData.lampShade.material.emissiveIntensity = lampOn ? 1.6 : 0.15;
   if (weather.target === 1 && !wasRaining && weather.rain > 0.1) {
     wasRaining = true;
@@ -353,6 +365,10 @@ function tick() {
       toast(`Caught ${catches[(fishCount - 1) % 4]}! 🎣 Total: ${fishCount}`);
       energy = Math.min(100, energy + 8);
       if (fishCount === 1) achieve('fish', 'First Catch! 🎣');
+      const prevFishLevel = Math.floor(fishSkill);
+      fishSkill = Math.min(10, fishSkill + 0.4);
+      const fishLevels = { 1: 'Learning the Waters 🎣', 3: 'Patient Fisher 🐟', 6: 'Skilled Angler! 🐠', 10: 'Master Angler! 🏆' };
+      if (Math.floor(fishSkill) > prevFishLevel && fishLevels[Math.floor(fishSkill)]) achieve('fish' + Math.floor(fishSkill), fishLevels[Math.floor(fishSkill)]);
     }
   }
   hunger -= 0.18 * dt;

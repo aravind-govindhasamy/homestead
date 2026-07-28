@@ -86,6 +86,7 @@ let snowPts, snowVel = [], snowDrift = [];
 let seasonalPts, seasonalVel = [], seasonalDrift = []; // leaves in autumn, petals in spring
 let leafMat, grassInstMat; // updated each frame for seasonal color
 let torchLights = []; // {pl: PointLight, fl: flame mesh} — path torches
+let aurora; // aurora borealis mesh, winter nights only
 export const CAMPFIRE = new THREE.Vector3(8.5, 0, 8.5);
 
 // ponytail: coin-flip weather, no fronts or forecast; add a pressure sim never
@@ -399,6 +400,25 @@ export function buildScenery() {
   }));
   group.add(fireflies);
 
+  // aurora borealis: shimmering curtain in the winter night sky
+  const auroraGeo = new THREE.PlaneGeometry(280, 60, 28, 6);
+  const aBase = new Float32Array(auroraGeo.attributes.position.array);
+  auroraGeo.userData.base = aBase;
+  const aCols = new Float32Array(aBase.length);
+  const aC = new THREE.Color();
+  for (let i = 0; i < aBase.length / 3; i++) {
+    const k = (i % 29) / 28, j = Math.floor(i / 29) / 6;
+    aC.setHSL(0.38 - k * 0.22, 1, 0.35 + j * 0.15);
+    aCols.set([aC.r, aC.g, aC.b], i * 3);
+  }
+  auroraGeo.setAttribute('color', new THREE.BufferAttribute(aCols, 3));
+  aurora = new THREE.Mesh(auroraGeo, new THREE.MeshBasicMaterial({
+    vertexColors: true, transparent: true, opacity: 0,
+    side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false,
+  }));
+  aurora.position.set(0, 75, -70);
+  group.add(aurora);
+
   // birds: small dark fliers circling above the terrain
   const birdMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
   for (let i = 0; i < 7; i++) {
@@ -506,6 +526,19 @@ export function updateEnvironment(dt, t, dayness, day = 1) {
 
   // stars + fireflies at night
   const night = Math.max(0, 1 - dayness * 4);
+
+  // aurora borealis: winter clear nights only — rippling green-to-purple curtain
+  const auroraAmt = isWinter ? night * Math.max(0, 1 - weather.rain * 2) * 0.8 : 0;
+  aurora.material.opacity = auroraAmt * (0.32 + Math.sin(t * 0.35) * 0.11 + Math.sin(t * 0.8 + 2) * 0.06);
+  if (auroraAmt > 0.02) {
+    const aBase2 = aurora.geometry.userData.base;
+    const ap = aurora.geometry.attributes.position;
+    for (let i = 0; i < ap.count; i++) {
+      const bx = aBase2[i * 3], by = aBase2[i * 3 + 1];
+      ap.setY(i, by + Math.sin(bx * 0.03 + t * 0.4) * 9 + Math.sin(bx * 0.07 + t * 0.6 + 0.5) * 4);
+    }
+    ap.needsUpdate = true;
+  }
   starsMat.opacity = night * 0.95;
   fireflies.material.opacity = night * (0.55 + Math.sin(t * 3) * 0.25);
   const fp = fireflies.geometry.attributes.position;
