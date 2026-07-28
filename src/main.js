@@ -83,6 +83,7 @@ let hunger = 100, fishing = false, fishTimer = 0, fishCount = 0;
 let farmSkill = 0, fishSkill = 0;
 let stepTimer = 0;
 let lastNpcToast = -60, lastWildlifeMin = -1, lastFestSeason = -1, lastGiftDay = 0;
+let dailyHarvests = 0, dailyCatches = 0, dailyTalks = 0;
 const npcGifts = []; // {x, z, name, claimed}
 const particleBursts = []; // {pts, geo, mat, vel, life}
 let muted = false;
@@ -197,7 +198,7 @@ addEventListener('keydown', e => {
     if (fishing) {
       toast('Patience… waiting for a bite 🎣');
     } else if (friend) {
-      friend.rel = Math.min(5, (friend.rel || 0) + 0.4);
+      friend.rel = Math.min(5, (friend.rel || 0) + 0.4); dailyTalks++;
       if (friend.rel >= 1 && !achievements.has('friends')) achieve('friends', `Friends with ${friend.name}!`);
       toast(getGreeting(friend));
     } else if (nearKitchen && hunger < 95) {
@@ -238,16 +239,23 @@ addEventListener('keydown', e => {
       fishTimer = Math.max(2.5, 13 - fishSkill * 1.1) * Math.random() + 2;
       toast('Casting line… 🎣');
     } else if (isNight && Math.hypot(player.x, player.z) < 9) {
+      const parts = [];
+      if (dailyHarvests) parts.push(`${dailyHarvests} harvest${dailyHarvests > 1 ? 's' : ''} 🌾`);
+      if (dailyCatches) parts.push(`${dailyCatches} fish 🐟`);
+      if (dailyTalks) parts.push(`chatted ${dailyTalks}× 💬`);
+      const summary = parts.length ? `Today: ${parts.join(', ')}` : 'A peaceful day 🌿';
+      toast(`🌙 Goodnight! ${summary}`, 2600);
       day++; dayTime = 6; energy = 100; hunger = Math.min(100, hunger + 20);
+      dailyHarvests = dailyCatches = dailyTalks = 0;
       const dreams = ['💭 You dream of fields stretching to the horizon…', '💭 You dream of golden fish leaping in the sunlight…', '💭 You dream of fireflies dancing over the pond…', '💭 You dream of the smell of bread from the kitchen…'];
-      toast(dreams[day % dreams.length], 2200);
-      setTimeout(() => toast(`Good morning! ☀️ Day ${day} — ${SEASONS[getSeason(day)]}`), 2400);
+      setTimeout(() => toast(dreams[day % dreams.length], 2200), 2800);
+      setTimeout(() => toast(`Good morning! ☀️ Day ${day} — ${SEASONS[getSeason(day)]}`), 5200);
     } else if (energy < 3) {
       toast('Too tired to work… rest by the fire or sleep at home');
     } else {
       const msg = interactFarm(player.x, player.z);
       if (msg && msg.startsWith('harvest:')) {
-        harvested++; energy -= 3; toast(`Harvested ${msg.slice(8)}! 🎃`);
+        harvested++; dailyHarvests++; energy -= 3; toast(`Harvested ${msg.slice(8)}! 🎃`);
         addBurst(player.x, groundAt(player.x, player.z) + 0.5, player.z, 0xf3a712);
         if (harvested === 1) achieve('harvest', 'First Harvest!');
         const prevLevel = Math.floor(farmSkill);
@@ -401,7 +409,7 @@ function tick() {
     bobber.position.set(SPOTS.pond.x + 1.5, -0.75 + Math.sin(t * (2.5 + urgency * 8)) * (0.06 + urgency * 0.12), SPOTS.pond.z + 1.5);
     fishTimer -= dt;
     if (fishTimer <= 0) {
-      fishing = false; fishCount++;
+      fishing = false; fishCount++; dailyCatches++;
       const catches = ['a trout', 'a sunfish', 'a perch', 'a tiny bass'];
       toast(`Caught ${catches[(fishCount - 1) % 4]}! 🎣 Total: ${fishCount}`);
       energy = Math.min(100, energy + 8);

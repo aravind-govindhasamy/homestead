@@ -199,6 +199,47 @@ export function buildScenery() {
     group.add(leg);
   }
 
+  // garden beds flanking the house entrance — raised stone borders with flowers
+  const bedStoneMat = new THREE.MeshStandardMaterial({ color: 0x9c9287, roughness: 1 });
+  const bedSoilMat = new THREE.MeshStandardMaterial({ color: 0x5a3d2b, roughness: 1 });
+  const bedFlowerCols = [0xff6b6b, 0xffca3a, 0x6bcb77, 0x4d96ff, 0xf7a8d8];
+  for (const [bx, bz] of [[-4, -5.5], [4, -5.5]]) {
+    const by = terrainHeightAt(bx, bz);
+    // border stones as instanced box
+    for (const [ox, oz, sx, sz] of [
+      [0, -0.6, 2.6, 0.18], [0, 0.6, 2.6, 0.18], [-1.3, 0, 0.18, 1.2], [1.3, 0, 0.18, 1.2]
+    ]) {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(sx, 0.22, sz), bedStoneMat);
+      b.position.set(bx + ox, by + 0.11, bz + oz); b.castShadow = true; group.add(b);
+    }
+    // soil fill
+    const soil = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.12, 1.0), bedSoilMat);
+    soil.position.set(bx, by + 0.06, bz); group.add(soil);
+    // small flower clumps in the bed
+    for (let fi = 0; fi < 9; fi++) {
+      const fx = bx + rand(-0.9, 0.9), fz2 = bz + rand(-0.35, 0.35);
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.22, 4),
+        new THREE.MeshStandardMaterial({ color: 0x4a8c38, roughness: 1 }));
+      stem.position.set(fx, by + 0.22, fz2); group.add(stem);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5),
+        new THREE.MeshStandardMaterial({ color: bedFlowerCols[fi % 5], roughness: 0.7, emissive: bedFlowerCols[fi % 5], emissiveIntensity: 0.08 }));
+      head.position.set(fx, by + 0.38, fz2); group.add(head);
+    }
+  }
+
+  // homestead sign at the front path entrance
+  {
+    const sx = 0, sz = -8, sy = terrainHeightAt(sx, sz);
+    const postMat = new THREE.MeshStandardMaterial({ color: 0x6e4f30, roughness: 1 });
+    const signMat = new THREE.MeshStandardMaterial({ color: 0xc4a26e, roughness: 0.7 });
+    for (const lx of [-0.65, 0.65]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 1.4, 5), postMat);
+      post.position.set(sx + lx, sy + 0.7, sz); group.add(post);
+    }
+    const board = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.38, 0.09), signMat);
+    board.position.set(sx, sy + 1.25, sz); board.castShadow = true; group.add(board);
+  }
+
   // stone path from the deck toward the farm gate
   const pathMat = new THREE.MeshStandardMaterial({ color: 0xa8a49a, roughness: 1 });
   const stones = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.45, 0.45, 0.09, 7), pathMat, 15);
