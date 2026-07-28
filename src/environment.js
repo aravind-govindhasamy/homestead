@@ -87,6 +87,7 @@ let seasonalPts, seasonalVel = [], seasonalDrift = []; // leaves in autumn, peta
 let leafMat, grassInstMat; // updated each frame for seasonal color
 let torchLights = []; // {pl: PointLight, fl: flame mesh} — path torches
 let aurora; // aurora borealis mesh, winter nights only
+let shootStar, shootStarTimer = rand(40, 120), shootStarT = -1; // shooting star state
 export const CAMPFIRE = new THREE.Vector3(8.5, 0, 8.5);
 
 // ponytail: coin-flip weather, no fronts or forecast; add a pressure sim never
@@ -429,6 +430,13 @@ export function buildScenery() {
     group.add(bird);
   }
 
+  // shooting star: a bright line streaking across the night sky
+  const ssGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 0)]);
+  shootStar = new THREE.Line(ssGeo, new THREE.LineBasicMaterial({
+    color: 0xffffff, transparent: true, opacity: 0, fog: false, depthWrite: false,
+  }));
+  group.add(shootStar);
+
   return group;
 }
 
@@ -540,6 +548,26 @@ export function updateEnvironment(dt, t, dayness, day = 1) {
     ap.needsUpdate = true;
   }
   starsMat.opacity = night * 0.95;
+
+  // shooting star: rare streak across the night sky
+  let sawStar = false;
+  shootStarTimer -= dt;
+  if (shootStarTimer <= 0 && night > 0.6 && !weather.rain) {
+    const a = rand(0, Math.PI * 2), el = rand(0.15, 0.5), r = 300;
+    const sx = Math.cos(a) * Math.cos(el) * r, sy = Math.sin(el) * r, sz = Math.sin(a) * Math.cos(el) * r;
+    const da = rand(-0.4, 0.4), dl = rand(-0.15, -0.05);
+    const ex = Math.cos(a + da) * Math.cos(el + dl) * r, ey = Math.sin(el + dl) * r, ez = Math.sin(a + da) * Math.cos(el + dl) * r;
+    const p = shootStar.geometry.attributes.position;
+    p.setXYZ(0, sx, sy, sz); p.setXYZ(1, ex, ey, ez); p.needsUpdate = true;
+    shootStarT = 0; sawStar = true;
+    shootStarTimer = rand(60, 240);
+  }
+  if (shootStarT >= 0) {
+    shootStarT += dt;
+    shootStar.material.opacity = shootStarT < 0.6 ? Math.sin(shootStarT / 0.6 * Math.PI) * 0.9 : 0;
+    if (shootStarT > 0.7) shootStarT = -1;
+  }
+
   fireflies.material.opacity = night * (0.55 + Math.sin(t * 3) * 0.25);
   const fp = fireflies.geometry.attributes.position;
   for (let i = 0; i < fireflyBase.length; i++) {
@@ -584,4 +612,5 @@ export function updateEnvironment(dt, t, dayness, day = 1) {
       b.rotation.y = a + Math.PI / 2;
     }
   }
+  return { sawStar };
 }

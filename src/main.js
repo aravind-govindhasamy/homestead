@@ -4,8 +4,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { terrain, terrainHeightAt, sculptAt, SPOTS } from './terrain.js';
 import {
   sky, sun, moon, hemi, updateDay, configureRenderer, buildScenery, updateEnvironment,
@@ -40,10 +39,7 @@ const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.3, 0.55, 0.85));
 composer.addPass(new OutputPass());
-const fxaaPass = new ShaderPass(FXAAShader);
-const pr = renderer.getPixelRatio();
-fxaaPass.material.uniforms.resolution.value.set(1 / (innerWidth * pr), 1 / (innerHeight * pr));
-composer.addPass(fxaaPass);
+composer.addPass(new SMAAPass(innerWidth * renderer.getPixelRatio(), innerHeight * renderer.getPixelRatio()));
 
 const house = createHouse();
 const player = createPlayer();
@@ -51,8 +47,14 @@ const playerTorch = new THREE.PointLight(0xffc98a, 0, 7, 2);
 playerTorch.position.set(0.4, 1.7, 0);
 player.group.add(playerTorch);
 const dog = createDog();
+// fishing bobber: red/white float that bobs on the pond while casting
+const bobber = new THREE.Mesh(
+  new THREE.SphereGeometry(0.09, 8, 6),
+  new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xff2222, emissiveIntensity: 0.4 })
+);
+bobber.visible = false;
 scene.add(sky, sun, moon, hemi, terrain, moduleGroup, house, createFarm(), buildScenery(),
-  player.group, dog.group, ...npcs.map(n => n.group));
+  player.group, dog.group, bobber, ...npcs.map(n => n.group));
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.maxPolarAngle = Math.PI / 2.05;
@@ -64,8 +66,6 @@ addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
   composer.setSize(innerWidth, innerHeight);
-  const rpr = renderer.getPixelRatio();
-  fxaaPass.material.uniforms.resolution.value.set(1 / (innerWidth * rpr), 1 / (innerHeight * rpr));
 });
 
 // ---------- state ----------
@@ -351,7 +351,8 @@ function tick() {
     }
   }
   const dayness = updateDay(dayTime, scene);
-  updateEnvironment(dt, t, dayness, day);
+  const { sawStar } = updateEnvironment(dt, t, dayness, day);
+  if (sawStar) { const wishes = ['🌠 A shooting star! Make a wish…', '🌠 A streak across the heavens!', '🌠 Quick — wish upon a star!']; toast(wishes[Math.floor(Math.random() * 3)], 2200); }
   const lampOn = dayness < 0.25;
   house.userData.light.intensity = lampOn ? 2.2 : 0;
   playerTorch.intensity = dayness < 0.2 ? 1.4 : 0;
@@ -393,7 +394,11 @@ function tick() {
   else energy += (nearFire ? 6 : 2) * dt;
   energy = Math.max(0, Math.min(100, energy));
 
+  // bobber floats at pond surface while casting; bobs urgently near catch time
+  bobber.visible = fishing;
   if (fishing) {
+    const urgency = Math.max(0, 1 - fishTimer / 3);
+    bobber.position.set(SPOTS.pond.x + 1.5, -0.75 + Math.sin(t * (2.5 + urgency * 8)) * (0.06 + urgency * 0.12), SPOTS.pond.z + 1.5);
     fishTimer -= dt;
     if (fishTimer <= 0) {
       fishing = false; fishCount++;
