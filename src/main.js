@@ -224,16 +224,10 @@ addEventListener('keydown', e => {
       ];
       energy = Math.min(100, energy + 3);
       toast(stars[Math.floor(Math.random() * stars.length)], 2800);
-    } else if (nearDog) {
-      const hoursSinceLastFeed = (day - 1) * 24 + dayTime - lastDogFeed;
-      if (hoursSinceLastFeed < 2) {
-        const nextIn = Math.ceil(2 - hoursSinceLastFeed * 60) + ' min';
-        toast(`Biscuit is full! Come back in ~${nextIn} 🐕`);
-      } else {
-        lastDogFeed = (day - 1) * 24 + dayTime;
-        energy = Math.min(100, energy + 6);
-        toast('Biscuit wags his tail happily! 🐕');
-      }
+    } else if (nearDog && (day - 1) * 24 + dayTime - lastDogFeed >= 2) {
+      lastDogFeed = (day - 1) * 24 + dayTime;
+      energy = Math.min(100, energy + 6);
+      toast('Biscuit wags his tail happily! 🐕');
     } else if (nearBench) {
       energy = Math.min(100, energy + 15); hunger = Math.min(100, hunger + 5);
       toast('Sat by the pond and watched the water. 🪷');
