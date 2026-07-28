@@ -19,7 +19,7 @@ import {
 } from './buildings.js';
 import { npcs, updateNPC, getGreeting } from './npcs.js';
 import { saveGame, loadGame } from './save.js';
-import { initAudio, updateAudio, setMuted } from './audio.js';
+import { initAudio, updateAudio, setMuted, playStep } from './audio.js';
 
 // ---------- scene core ----------
 const scene = new THREE.Scene();
@@ -70,6 +70,7 @@ let camYaw = 0.6, camPitch = 0.42, camDist = 9;
 let wasRaining = false;
 let hunger = 100, fishing = false, fishTimer = 0, fishCount = 0;
 let farmSkill = 0;
+let stepTimer = 0;
 let lastNpcToast = -60, lastWildlifeMin = -1;
 let muted = false;
 const achievements = new Set();
@@ -316,6 +317,10 @@ function tick() {
   if (mode === 'play') {
     const canRun = energy > 5;
     speed = updatePlayer(player, dt, { ...input, run: input.run && canRun }, camYaw);
+    if (speed > 0.5) {
+      stepTimer -= dt;
+      if (stepTimer <= 0) { playStep(); stepTimer = input.run ? 0.27 : 0.44; }
+    } else stepTimer = 0;
   } else {
     player.group.position.set(player.x, groundAt(player.x, player.z), player.z);
   }
@@ -383,6 +388,7 @@ function tick() {
   $('hunger-fill').style.width = `${hunger}%`;
   $('harvest').textContent = harvested;
   $('fish-count').textContent = fishCount;
+  $('farm-level').textContent = `Lv.${Math.floor(farmSkill) + 1}`;
   $('npc-status').textContent =
     npcs.map(n => {
       const rel = n.rel || 0;

@@ -54,3 +54,15 @@ export function setMuted(muted) {
   if (!ctx) return;
   muted ? ctx.suspend() : ctx.resume();
 }
+
+export function playStep() {
+  if (!ctx || ctx.state === 'suspended') return;
+  const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.04), ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() - 0.5);
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 180 + Math.random() * 120;
+  const g = ctx.createGain(); g.gain.value = 0.035;
+  src.connect(f); f.connect(g); g.connect(ctx.destination);
+  src.start();
+}

@@ -46,7 +46,10 @@ export function updateDay(dayTime, scene) {
   const mistFactor = Math.max(0, 1 - Math.abs(dayTime - 7) / 2) * Math.min(1, dayness * 5) * (1 - weather.rain * 0.8);
   scene.fog.near = Math.max(3, 80 - mistFactor * 77);
   scene.fog.far = 320 - weather.rain * 150 - mistFactor * 150;
-  scene.fog.color.lerpColors(new THREE.Color(0x0a0e1c), new THREE.Color(0xbfd4e0), dayness * (1 - weather.rain * 0.3));
+  // fog color: night dark → dawn/dusk amber → midday blue-white
+  const dawnDusk = Math.max(0, 1 - Math.abs(sunDir.y) * 5) * 0.75;
+  const dayFogColor = new THREE.Color(0xbfd4e0).lerp(new THREE.Color(0xffcca0), dawnDusk);
+  scene.fog.color.lerpColors(new THREE.Color(0x0a0e1c), dayFogColor, dayness * (1 - weather.rain * 0.3));
   return dayness;
 }
 
@@ -80,6 +83,7 @@ let waterGeo, clouds = [], bees = [], butterflies = [], birds = [],
   fireflies, fireflyBase, starsMat, flame, fireLight;
 let rainPts, rainVel = [];
 let snowPts, snowVel = [], snowDrift = [];
+let seasonalPts, seasonalVel = [], seasonalDrift = []; // leaves in autumn, petals in spring
 let leafMat, grassInstMat; // updated each frame for seasonal color
 let torchLights = []; // {pl: PointLight, fl: flame mesh} — path torches
 export const CAMPFIRE = new THREE.Vector3(8.5, 0, 8.5);
@@ -174,7 +178,7 @@ export function buildScenery() {
   // pond water (rippled each frame in updateEnvironment)
   waterGeo = new THREE.CircleGeometry(SPOTS.pond.r - 0.3, 40);
   const water = new THREE.Mesh(waterGeo,
-    new THREE.MeshStandardMaterial({ color: 0x3d7a9e, transparent: true, opacity: 0.82, roughness: 0.08, metalness: 0.3 }));
+    new THREE.MeshStandardMaterial({ color: 0x2a6888, transparent: true, opacity: 0.88, roughness: 0.04, metalness: 0.55, envMapIntensity: 1.2 }));
   water.rotation.x = -Math.PI / 2;
   water.position.set(SPOTS.pond.x, WATER_LEVEL, SPOTS.pond.z);
   group.add(water);
@@ -309,6 +313,21 @@ export function buildScenery() {
   }));
   group.add(snowPts);
 
+  // seasonal particles: autumn leaves (amber) or spring petals (pink)
+  const N_SEASONAL = 400;
+  const seaBuf = new Float32Array(N_SEASONAL * 3);
+  for (let i = 0; i < N_SEASONAL; i++) {
+    seaBuf.set([rand(-50, 50), rand(0, 28), rand(-50, 50)], i * 3);
+    seasonalVel.push(rand(1.2, 3.2));
+    seasonalDrift.push(rand(0, Math.PI * 2));
+  }
+  const seaGeo = new THREE.BufferGeometry();
+  seaGeo.setAttribute('position', new THREE.BufferAttribute(seaBuf, 3));
+  seasonalPts = new THREE.Points(seaGeo, new THREE.PointsMaterial({
+    color: 0xd4802a, size: 3.8, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false,
+  }));
+  group.add(seasonalPts);
+
   // farm fence
   const { x: fx, z: fz } = SPOTS.farm;
   const W = 7, D = 5;
@@ -426,6 +445,21 @@ export function updateEnvironment(dt, t, dayness, day = 1) {
       const x = sp.getX(i) + Math.sin(t * 0.4 + snowDrift[i]) * 0.08;
       const y = sp.getY(i) - snowVel[i] * dt;
       sp.setXYZ(i, x, y < 0 ? 30 : y, sp.getZ(i));
+    }
+    sp.needsUpdate = true;
+  }
+
+  // seasonal falling particles: amber leaves in autumn, pink petals in spring
+  const isAutumn = season === 2, isSpring = season === 0;
+  const seaAmt = isAutumn ? 0.75 : (isSpring ? 0.45 : 0);
+  seasonalPts.material.opacity = seaAmt;
+  if (seaAmt > 0) {
+    seasonalPts.material.color.setHex(isSpring ? 0xffb8cc : 0xd4802a);
+    const sp = seasonalPts.geometry.attributes.position;
+    for (let i = 0; i < seasonalVel.length; i++) {
+      const x = sp.getX(i) + Math.sin(t * 0.9 + seasonalDrift[i]) * 0.18;
+      const y = sp.getY(i) - seasonalVel[i] * dt;
+      sp.setXYZ(i, x, y < 0 ? 27 : y, sp.getZ(i));
     }
     sp.needsUpdate = true;
   }
