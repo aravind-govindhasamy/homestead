@@ -192,9 +192,9 @@ addEventListener('keydown', e => {
     const friend = npcs.find(n => Math.hypot(n.x - player.x, n.z - player.z) < 2.5);
     const nearDog = Math.hypot(player.x - dog.x, player.z - dog.z) < 2.2;
     const nearPond = Math.hypot(player.x - SPOTS.pond.x, player.z - SPOTS.pond.z) < SPOTS.pond.r + 3;
-    const nearKitchen = Math.hypot(player.x - (SPOTS.house.x + 2.2), player.z - (SPOTS.house.z - 3.6)) < 3;
+    const nearKitchen = Math.hypot(player.x - (SPOTS.house.x + 3.8), player.z - (SPOTS.house.z - 4.5)) < 3;
     const nearBench = Math.hypot(player.x + 15, player.z + 10.6) < 3;
-    const nearBookshelf = Math.hypot(player.x + 5.55, player.z + 1.5) < 2.5;
+    const nearBookshelf = Math.hypot(player.x - (SPOTS.house.x - 3.8), player.z - (SPOTS.house.z + 2.8)) < 2.5;
     if (fishing) {
       toast('Patience… waiting for a bite 🎣');
     } else if (friend) {
@@ -231,11 +231,11 @@ addEventListener('keydown', e => {
       toast('Sat by the pond and watched the water. 🪷');
     } else if (nearBookshelf) {
       const quotes = [
-        '"The earth laughs in flowers." — Emerson 🌸',
-        '"In every walk with nature, one receives far more than he seeks." — Muir 🌿',
-        '"Home is where the heart is." — Pliny the Elder 🏡',
-        '"A quiet garden is a refuge for the spirit." 📖',
-        '"Tend your garden and it will tend to you." 🌱',
+        '🪔 You light the lamp and feel a quiet peace settle…',
+        '🙏 A moment of gratitude for this beautiful life.',
+        '🪔 The flame flickers — a reminder to stay present.',
+        '🌸 You offer a flower to the puja lamp.',
+        '🙏 Inner peace restored. +10 energy',
       ];
       energy = Math.min(100, energy + 5);
       toast(quotes[Math.floor(Math.random() * quotes.length)]);
@@ -489,9 +489,9 @@ function tick() {
     else if (!isNightHint && Math.hypot(player.x - CAMPFIRE.x, player.z - CAMPFIRE.z) < 4 && dayness < 0.45 && hunger < 90) eCtx = '🍲 Cook at fire';
     else if (isNightHint && Math.hypot(player.x - CAMPFIRE.x, player.z - CAMPFIRE.z) < 5) eCtx = '⭐ Gaze at stars';
     else if (Math.hypot(player.x + 15, player.z + 10.6) < 3) eCtx = '🪷 Sit by pond';
-    else if (Math.hypot(player.x + 5.55, player.z + 1.5) < 2.5) eCtx = '📖 Read';
+    else if (Math.hypot(player.x - (SPOTS.house.x - 3.8), player.z - (SPOTS.house.z + 2.8)) < 2.5) eCtx = '🪔 Pray at puja';
     else if (Math.hypot(player.x - SPOTS.pond.x, player.z - SPOTS.pond.z) < SPOTS.pond.r + 3) eCtx = '🎣 Fish';
-    else if (Math.hypot(player.x - (SPOTS.house.x + 2.2), player.z - (SPOTS.house.z - 3.6)) < 3 && hunger < 95) eCtx = '🍲 Cook';
+    else if (Math.hypot(player.x - (SPOTS.house.x + 3.8), player.z - (SPOTS.house.z - 4.5)) < 3 && hunger < 95) eCtx = '🍲 Cook';
     else if (isNightHint && Math.hypot(player.x, player.z) < 9) eCtx = '💤 Sleep';
     else {
       const np = plots.reduce((b, p) => Math.hypot(p.x-player.x,p.z-player.z) < Math.hypot(b.x-player.x,b.z-player.z) ? p : b, plots[0]);

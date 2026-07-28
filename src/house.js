@@ -1,90 +1,212 @@
 import * as THREE from 'three';
 import { SPOTS, terrainHeightAt } from './terrain.js';
 
-// walkable surfaces: floor slab and deck (ponytail: no wall collision yet —
-// add AABB blocking if walking through glass starts to hurt)
+// ponytail: no wall collision — add AABB if walking through walls hurts
 export function houseSurfaceAt(x, z) {
   const hx = x - SPOTS.house.x, hz = z - SPOTS.house.z;
-  if (Math.abs(hx) <= 6 && Math.abs(hz) <= 4.25) return SPOTS.house.h + 0.36; // floor slab
-  if (hx >= -3 && hx <= 4 && hz > 4.25 && hz <= 8) return SPOTS.house.h + 0.23; // deck
+  if (Math.abs(hx) <= 5.3 && hz >= -5.8 && hz <= 5.8) return SPOTS.house.h + 0.4; // interior
+  if (Math.abs(hx) <= 3.8 && hz > 5.8 && hz <= 8.2) return SPOTS.house.h + 0.15;  // sitout
   return -Infinity;
 }
+
 export const groundAt = (x, z) => Math.max(terrainHeightAt(x, z), houseSurfaceAt(x, z));
 
-// modern flat-roof house: white volumes, glass front, wood accent, deck
+// Kerala traditional duplex house (tharavadu style) — cream walls, terracotta hip roofs,
+// central Nadumuttam courtyard, sitout verandah, duplex upper floor with balcony
 export function createHouse() {
   const g = new THREE.Group();
-  const white = new THREE.MeshStandardMaterial({ color: 0xf2f1ec, roughness: 0.6 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x33393f, roughness: 0.5, metalness: 0.2 });
-  const wood = new THREE.MeshStandardMaterial({ color: 0xb08454, roughness: 0.85 });
-  const glass = new THREE.MeshStandardMaterial({
-    color: 0x9fc4d8, transparent: true, opacity: 0.32, roughness: 0.05, metalness: 0.4,
+
+  const wallMat  = new THREE.MeshStandardMaterial({ color: 0xf2ede2, roughness: 0.8 });
+  const roofMat  = new THREE.MeshStandardMaterial({ color: 0xb5441a, roughness: 0.95, side: THREE.DoubleSide });
+  const woodMat  = new THREE.MeshStandardMaterial({ color: 0x3d2008, roughness: 0.85 });
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0xc8bfad, roughness: 1 });
+  const courtMat = new THREE.MeshStandardMaterial({ color: 0xddd5c5, roughness: 0.9 });
+  const glassMat = new THREE.MeshStandardMaterial({
+    color: 0x9fc4d8, transparent: true, opacity: 0.28, roughness: 0.05, metalness: 0.4,
   });
+  const brassMat = new THREE.MeshStandardMaterial({ color: 0xd4a017, roughness: 0.4, metalness: 0.6 });
+
   const box = (mat, w, h, d, x, y, z) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
     m.position.set(x, y, z);
     m.castShadow = m.receiveShadow = true;
-    g.add(m);
-    return m;
+    g.add(m); return m;
   };
 
-  // main volume
-  box(white, 12, 0.35, 8.5, 0, 0.18, 0);          // floor slab
-  box(white, 12, 3.1, 0.22, 0, 1.9, -4.1);        // back wall
-  box(white, 0.22, 3.1, 8.5, -5.9, 1.9, 0);       // left wall
-  box(wood, 0.28, 3.1, 8.5, 5.9, 1.9, 0);         // wood accent right wall
-  // glass front with dark mullions
-  box(glass, 11, 2.9, 0.1, 0, 1.85, 4.1);
-  for (const x of [-5.5, -2.75, 0, 2.75, 5.5]) box(dark, 0.12, 3, 0.16, x, 1.85, 4.1);
-  box(dark, 11.2, 0.12, 0.16, 0, 3.32, 4.1);
-  // flat roof with overhang
-  box(dark, 13.2, 0.35, 9.8, 0, 3.65, 0.2);
-  // clerestory second volume
-  box(white, 6, 1.5, 5, -2.5, 4.55, -1.2);
-  box(dark, 6.6, 0.25, 5.6, -2.5, 5.4, -1.2);
-  // deck + steps
-  box(wood, 7, 0.22, 3.6, 0.5, 0.12, 6.2);
-  box(wood, 3, 0.16, 0.9, 0.5, 0.0, 8.4);
-  // ---- interior (visible through the glass front) ----
-  const F = 0.355; // floor top
-  const teal = new THREE.MeshStandardMaterial({ color: 0x2a6f77, roughness: 0.8 });
-  const cream = new THREE.MeshStandardMaterial({ color: 0xe8ddc8, roughness: 0.9 });
-  // rug
-  const rug = new THREE.Mesh(new THREE.CylinderGeometry(1.9, 1.9, 0.03, 24), cream);
-  rug.position.set(-2, F + 0.02, 0.8); g.add(rug);
-  // sofa facing the glass front
-  box(teal, 2.6, 0.55, 0.95, -2, F + 0.28, -0.8);
-  box(teal, 2.6, 0.55, 0.28, -2, F + 0.72, -1.2);
-  for (const ax of [-3.2, -0.8]) box(teal, 0.3, 0.5, 0.95, ax, F + 0.6, -0.8);
-  // coffee table
-  box(wood, 1.3, 0.36, 0.65, -2, F + 0.2, 0.9);
-  // dining table + chairs
-  box(wood, 1.7, 0.09, 0.95, 3.2, F + 0.78, -1.5);
-  for (const [lx, lz] of [[-0.7, -0.35], [0.7, -0.35], [-0.7, 0.35], [0.7, 0.35]])
-    box(dark, 0.08, 0.75, 0.08, 3.2 + lx, F + 0.38, -1.5 + lz);
-  for (const cz of [-2.3, -0.7]) box(wood, 0.45, 0.5, 0.45, 3.2, F + 0.26, cz);
-  // kitchen counter along the back wall
-  box(dark, 4.2, 0.85, 0.62, 2.2, F + 0.43, -3.6);
-  box(white, 4.3, 0.06, 0.68, 2.2, F + 0.89, -3.6);
-  // bookshelf on the left wall
-  box(wood, 0.32, 2.1, 1.7, -5.55, F + 1.05, -1.5);
-  const bookCols = [0xc94f7c, 0x4f7cc9, 0xd9a441, 0x5c8a3a, 0x8a3b2e];
-  for (let i = 0; i < 10; i++)
-    box(new THREE.MeshStandardMaterial({ color: bookCols[i % 5], roughness: 0.9 }),
-      0.2, 0.28, 0.09, -5.5, F + 0.5 + Math.floor(i / 5) * 0.55, -2.1 + (i % 5) * 0.3);
-  // floor lamp by the sofa, shade glows in the evening with the point light
-  box(dark, 0.06, 1.5, 0.06, -3.6, F + 0.75, 0.2);
-  const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 0.35, 10),
-    new THREE.MeshStandardMaterial({ color: 0xffe6b8, emissive: 0xffc98a, emissiveIntensity: 0.15 }));
-  shade.position.set(-3.6, F + 1.6, 0.2); g.add(shade);
+  // window helper: glass panel + 4-strip dark teak frame
+  // axis='x' → window is on a wall facing X; axis='z' → facing Z
+  const addWindow = (cx, cy, cz, axis) => {
+    const [gw, gd] = axis === 'x' ? [0.08, 1.2] : [1.2, 0.08];
+    const [fw, fd] = axis === 'x' ? [0.11, 1.42] : [1.42, 0.11];
+    box(glassMat, gw, 0.85, gd, cx, cy, cz);
+    box(woodMat, fw, 0.1, fd, cx, cy + 0.48, cz); // top rail
+    box(woodMat, fw, 0.1, fd, cx, cy - 0.48, cz); // bottom rail
+    if (axis === 'x') {
+      box(woodMat, 0.11, 1.0, 0.1, cx, cy, cz - 0.65);
+      box(woodMat, 0.11, 1.0, 0.1, cx, cy, cz + 0.65);
+    } else {
+      box(woodMat, 0.1, 1.0, 0.11, cx - 0.65, cy, cz);
+      box(woodMat, 0.1, 1.0, 0.11, cx + 0.65, cy, cz);
+    }
+  };
 
-  // warm interior light for evenings (main loop drives intensity)
+  // custom quad roof face (for hip roof panels)
+  const addRoofFace = (a, b, c, d) => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(
+      new Float32Array([...a, ...b, ...c, ...a, ...c, ...d]), 3));
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, roofMat);
+    m.castShadow = true; g.add(m);
+  };
+
+  // ─── Plinth (raised stone base) ──────────────────────────────────
+  box(stoneMat, 11.8, 0.4, 12.8, 0, -0.1, 0);
+
+  // ─── Perimeter Walls (h=2.8, t=0.35) ────────────────────────────
+  box(wallMat, 11, 2.8, 0.35, 0, 1.4, -6);        // back (N)
+  box(wallMat, 0.35, 2.8, 12, -5.5, 1.4, 0);       // left (W)
+  box(wallMat, 0.35, 2.8, 12, 5.5, 1.4, 0);        // right (E)
+  box(wallMat, 4.25, 2.8, 0.35, -3.0, 1.4, 6);     // front-left
+  box(wallMat, 4.25, 2.8, 0.35,  3.0, 1.4, 6);     // front-right
+
+  // Entrance door frame + two panels (traditional carved teak look)
+  box(woodMat, 2.1, 2.6, 0.16, 0, 1.3, 6);         // door surround
+  box(woodMat, 0.85, 2.2, 0.08, -0.48, 1.1, 6.05); // left panel
+  box(woodMat, 0.85, 2.2, 0.08,  0.48, 1.1, 6.05); // right panel
+  // decorative header above door
+  box(woodMat, 2.2, 0.22, 0.18, 0, 2.72, 6);
+
+  // ─── Nadumuttam (central open courtyard) ─────────────────────────
+  box(courtMat, 3.4, 0.06, 3.4, 0, 0.03, 0);       // lime-plaster floor
+  // 4 low inner walls framing the open sky
+  box(wallMat, 4.0, 1.1, 0.2, 0, 0.55, 1.85);
+  box(wallMat, 4.0, 1.1, 0.2, 0, 0.55, -1.85);
+  box(wallMat, 0.2, 1.1, 4.0, -1.85, 0.55, 0);
+  box(wallMat, 0.2, 1.1, 4.0,  1.85, 0.55, 0);
+  // Tulsi (holy basil) plant in center of courtyard
+  const tulsi = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6),
+    new THREE.MeshStandardMaterial({ color: 0x3d7a28, roughness: 0.9 }));
+  tulsi.scale.set(1, 1.4, 1); tulsi.position.set(0, 0.4, 0); g.add(tulsi);
+
+  // ─── Interior partitions (for visual depth) ──────────────────────
+  box(wallMat, 0.2, 2.6, 5.2, 2.5, 1.3, -1.8);    // kitchen partition (right side)
+  box(wallMat, 3.5, 2.6, 0.2, 3.75, 1.3, 2.8);    // puja room front wall
+
+  // ─── Windows ────────────────────────────────────────────────────
+  addWindow(-5.5, 1.8, -3.5, 'x');  // left wall, back
+  addWindow(-5.5, 1.8,  2.0, 'x');  // left wall, front
+  addWindow( 5.5, 1.8, -3.5, 'x');  // right wall, back
+  addWindow( 5.5, 1.8,  2.0, 'x');  // right wall, front
+  addWindow(   0, 1.8,   -6, 'z');  // back wall
+
+  // ─── Kitchen counter (right-back quadrant) ───────────────────────
+  box(woodMat, 3.2, 0.85, 0.65, 3.8, 0.85, -4.5);
+  box(stoneMat, 3.3, 0.07, 0.7, 3.8, 1.31, -4.5); // granite top
+
+  // ─── Puja corner (right-front: lamp stand + brass bowl) ──────────
+  const lampStand = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.6, 8), brassMat);
+  lampStand.position.set(-3.8, 0.6, 2.8); g.add(lampStand);
+  const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.08, 0.1, 12), brassMat);
+  bowl.position.set(-3.8, 0.95, 2.8); g.add(bowl);
+  // tiny flame
+  const pujaFlame = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.14, 6),
+    new THREE.MeshStandardMaterial({ color: 0xff8c2e, emissive: 0xff4400, emissiveIntensity: 2 }));
+  pujaFlame.position.set(-3.8, 1.12, 2.8); g.add(pujaFlame);
+
+  // ─── Sitout / Front Verandah ─────────────────────────────────────
+  box(stoneMat, 7.4, 0.14, 2.2, 0, 0.07, 7.2);    // floor
+  // 6 tapered teak pillars
+  for (const px of [-3.0, -1.5, 0, 1.5, 3.0]) {
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 2.75, 8), woodMat);
+    col.position.set(px, 1.375, 7.5); col.castShadow = true; g.add(col);
+    // pillar capital (carved top)
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.14, 0.32), woodMat);
+    cap.position.set(px, 2.82, 7.5); g.add(cap);
+  }
+  // lintel connecting pillar tops
+  box(woodMat, 7.2, 0.16, 0.16, 0, 2.84, 7.5);
+  // Sitout steps (2 risers)
+  box(stoneMat, 3.4, 0.16, 0.7, 0, 0.08, 8.35);
+  box(stoneMat, 3.0, 0.16, 0.7, 0, -0.08, 9.05);
+
+  // ─── Ground Floor Hip Roof ────────────────────────────────────────
+  // 4 custom trapezoidal faces — terracotta tiles
+  // Eave at y=2.8 with 0.8 overhang all around (except south extends to cover sitout lintel)
+  // Ridge at y=4.5, runs 5 units along X axis
+  const ey = 2.8, ry = 4.5;
+  const sw = [-6.3, ey, 6.8], se = [6.3, ey, 6.8];
+  const nw = [-6.3, ey, -6.8], ne = [6.3, ey, -6.8];
+  const rs1 = [-2.5, ry, 2.8], rs2 = [2.5, ry, 2.8]; // south ridge ends
+  const rn1 = [-2.5, ry, -2.8], rn2 = [2.5, ry, -2.8]; // north ridge ends
+
+  addRoofFace(sw, se, rs2, rs1); // south slope
+  addRoofFace(ne, nw, rn1, rn2); // north slope
+  addRoofFace(nw, sw, rs1, rn1); // west hip
+  addRoofFace(se, ne, rn2, rs2); // east hip
+
+  // Ridge beam + ornamental finial
+  box(woodMat, 5.4, 0.28, 0.42, 0, ry + 0.14, 0);  // ridge cap beam
+  const fn1 = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.14, 0.7, 8), woodMat);
+  fn1.position.set(0, ry + 0.63, 0); g.add(fn1);
+  const fn2 = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), brassMat);
+  fn2.position.set(0, ry + 1.06, 0); g.add(fn2);
+
+  // ─── Upper Floor (duplex) ─────────────────────────────────────────
+  const uf = 2.8; // upper floor base Y
+  // Floor slab
+  box(stoneMat, 7.6, 0.22, 9.6, 0, uf + 0.11, 0);
+  // Perimeter walls (h=1.8)
+  box(wallMat, 7.2, 1.8, 0.3, 0, uf + 0.9, -4.65);  // N
+  box(wallMat, 0.3, 1.8, 9.6, -3.65, uf + 0.9, 0);   // W
+  box(wallMat, 0.3, 1.8, 9.6,  3.65, uf + 0.9, 0);   // E
+  // Front wall of upper floor: two halves with door gap for balcony access
+  box(wallMat, 2.5, 1.8, 0.3, -2.35, uf + 0.9, 4.65);
+  box(wallMat, 2.5, 1.8, 0.3,  2.35, uf + 0.9, 4.65);
+  // Upper floor windows
+  addWindow(-3.65, uf + 1.0, -2.5, 'x');
+  addWindow(-3.65, uf + 1.0,  1.5, 'x');
+  addWindow( 3.65, uf + 1.0, -2.5, 'x');
+  addWindow( 3.65, uf + 1.0,  1.5, 'x');
+  addWindow(0, uf + 1.0, -4.65, 'z'); // back
+
+  // Front balcony
+  box(stoneMat, 5.4, 0.16, 1.4, 0, uf + 0.18, 5.35);
+  for (const bx of [-2.1, -0.7, 0.7, 2.1]) {
+    const bp = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.05, 6), woodMat);
+    bp.position.set(bx, uf + 0.74, 5.95); g.add(bp);
+  }
+  box(woodMat, 5.6, 0.09, 0.09, 0, uf + 1.3, 6.02); // balcony railing
+
+  // ─── Upper Floor Hip Roof ─────────────────────────────────────────
+  const uey = uf + 1.8, ury = uey + 1.45; // upper eave, upper ridge heights
+  const usw = [-4.25, uey, 5.25], use2 = [4.25, uey, 5.25];
+  const unw = [-4.25, uey, -5.25], une = [4.25, uey, -5.25];
+  const urs1 = [-1.8, ury, 2.2], urs2 = [1.8, ury, 2.2];
+  const urn1 = [-1.8, ury, -2.2], urn2 = [1.8, ury, -2.2];
+
+  addRoofFace(usw, use2, urs2, urs1);
+  addRoofFace(une, unw, urn1, urn2);
+  addRoofFace(unw, usw, urs1, urn1);
+  addRoofFace(use2, une, urn2, urs2);
+
+  box(woodMat, 3.8, 0.22, 0.34, 0, ury + 0.11, 0); // upper ridge beam
+  const ufn1 = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.1, 0.5, 8), woodMat);
+  ufn1.position.set(0, ury + 0.44, 0); g.add(ufn1);
+  const ufn2 = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), brassMat);
+  ufn2.position.set(0, ury + 0.74, 0); g.add(ufn2);
+
+  // ─── Interior lighting (Nadumuttam courtyard lamp) ────────────────
+  const shadeMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.22, 0.3, 0.35, 10),
+    new THREE.MeshStandardMaterial({ color: 0xffe6b8, emissive: 0xffc98a, emissiveIntensity: 0.15 }));
+  shadeMesh.position.set(0, 2.2, 0); g.add(shadeMesh);
   const light = new THREE.PointLight(0xffc98a, 0, 18, 1.6);
-  light.position.set(-3.6, F + 1.7, 0.2);
+  light.position.set(0, 2.3, 0);
   g.add(light);
-  g.userData.lampShade = shade;
+  g.userData.lampShade = shadeMesh;
+  g.userData.light = light;
 
   g.position.set(SPOTS.house.x, SPOTS.house.h, SPOTS.house.z);
-  g.userData.light = light;
   return g;
 }
