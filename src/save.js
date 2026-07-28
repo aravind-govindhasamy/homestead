@@ -28,6 +28,7 @@ function isValidSave(d) {
     Number.isInteger(d.harvested) && d.harvested >= 0 &&
     Number.isInteger(d.day) && d.day >= 1 && d.day <= 100000 &&
     Number.isFinite(d.energy) && d.energy >= 0 && d.energy <= 100 &&
+    (d.hunger === undefined || (Number.isFinite(d.hunger) && d.hunger >= 0 && d.hunger <= 100)) &&
     Number.isFinite(d.dayTime) && d.dayTime >= 0 && d.dayTime < 24
   );
 }
@@ -44,6 +45,7 @@ export function saveGame(state) {
     harvested: state.harvested,
     day: state.day,
     energy: Math.round(state.energy),
+    hunger: Math.round(state.hunger ?? 100),
     dayTime: state.dayTime,
   };
   localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -63,5 +65,5 @@ export function loadGame() {
   data.modules.forEach(m => placeModule(m.type, m.x, m.z));
   data.npcs.forEach((s, i) => Object.assign(npcs[i], { x: s.x, z: s.z }));
   data.plots.forEach((s, i) => Object.assign(plots[i], { state: s.s, t: s.t }));
-  return { dayTime: data.dayTime, player: data.player, harvested: data.harvested, day: data.day, energy: data.energy };
+  return { dayTime: data.dayTime, player: data.player, harvested: data.harvested, day: data.day, energy: data.energy, hunger: data.hunger };
 }

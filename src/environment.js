@@ -22,12 +22,20 @@ export const moon = new THREE.DirectionalLight(0x93a7cc, 0);
 export const hemi = new THREE.HemisphereLight(0xbfd9ff, 0x4a5d35, 0.5);
 
 const sunDir = new THREE.Vector3();
+const _goldenColor = new THREE.Color(0xff7020);
+export const SEASONS = ['Spring', 'Summer', 'Autumn', 'Winter'];
+export function getSeason(day) { return Math.floor(((day - 1) % 120) / 30); }
+
 export function updateDay(dayTime, scene) {
   const angle = ((dayTime - 6) / 24) * Math.PI * 2; // sunrise at 6
   sunDir.set(Math.cos(angle), Math.sin(angle), 0.35).normalize();
   sky.material.uniforms.sunPosition.value.copy(sunDir);
   sun.position.copy(sunDir).multiplyScalar(90);
   const dayness = Math.max(0, sunDir.y);
+  // golden hour: sun turns orange near the horizon (dawn and dusk)
+  const golden = Math.max(0, 1 - Math.abs(sunDir.y) * 7) * (1 - weather.rain * 0.5);
+  sun.color.set(0xfff1dc).lerp(_goldenColor, golden * 0.75);
+  sky.material.uniforms.rayleigh.value = 1.8 + golden * 2.0;
   const clear = 1 - weather.rain * 0.6;
   sun.intensity = 3 * dayness * clear;
   moon.intensity = 0.3 * Math.max(0, 1 - dayness * 4);
@@ -67,6 +75,7 @@ function scatter(count, place, filter = null) {
 // dynamic bits driven by updateEnvironment
 let waterGeo, clouds = [], bees = [], butterflies = [], fireflies, fireflyBase, starsMat, flame, fireLight;
 let rainPts, rainVel = [];
+let snowPts, snowVel = [], snowDrift = [];
 export const CAMPFIRE = new THREE.Vector3(8.5, 0, 8.5);
 
 // ponytail: coin-flip weather, no fronts or forecast; add a pressure sim never
@@ -264,6 +273,21 @@ export function buildScenery() {
   }));
   group.add(rainPts);
 
+  // snow: slow drifting flakes for winter (updateEnvironment drives opacity)
+  const N_SNOW = 700;
+  const snowBuf = new Float32Array(N_SNOW * 3);
+  for (let i = 0; i < N_SNOW; i++) {
+    snowBuf.set([rand(-50, 50), rand(0, 32), rand(-50, 50)], i * 3);
+    snowVel.push(rand(3, 7));
+    snowDrift.push(rand(0, Math.PI * 2));
+  }
+  const snowGeo = new THREE.BufferGeometry();
+  snowGeo.setAttribute('position', new THREE.BufferAttribute(snowBuf, 3));
+  snowPts = new THREE.Points(snowGeo, new THREE.PointsMaterial({
+    color: 0xe8eeff, size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false,
+  }));
+  group.add(snowPts);
+
   // farm fence
   const { x: fx, z: fz } = SPOTS.farm;
   const W = 7, D = 5;
@@ -338,18 +362,21 @@ export function buildScenery() {
   return group;
 }
 
-export function updateEnvironment(dt, t, dayness) {
-  // weather: flip a coin every so often, ease toward the target
+export function updateEnvironment(dt, t, dayness, day = 1) {
+  const season = getSeason(day);
+  // weather: rain chance varies by season (wetter in spring/autumn, drier summer, snowy winter)
   weather.timer -= dt;
   if (weather.timer <= 0) {
-    weather.target = weather.target > 0 ? 0 : (Math.random() < 0.3 ? 1 : 0);
-    weather.timer = weather.target ? rand(25, 45) : rand(40, 90);
+    const rainChance = [0.35, 0.12, 0.45, 0.25][season];
+    weather.target = weather.target > 0 ? 0 : (Math.random() < rainChance ? 1 : 0);
+    weather.timer = weather.target ? rand(25, 45) : rand(35, 80);
   }
   weather.rain += (weather.target - weather.rain) * Math.min(1, dt * 0.4);
 
-  // rain particles fall and recycle
-  rainPts.material.opacity = weather.rain * 0.55;
-  if (weather.rain > 0.02) {
+  // rain falls only outside winter; winter gets snow instead
+  const isWinter = season === 3;
+  rainPts.material.opacity = isWinter ? 0 : weather.rain * 0.55;
+  if (!isWinter && weather.rain > 0.02) {
     const rpp = rainPts.geometry.attributes.position;
     for (let i = 0; i < rainVel.length; i++) {
       let y = rpp.getY(i) - rainVel[i] * dt;
@@ -357,6 +384,19 @@ export function updateEnvironment(dt, t, dayness) {
       rpp.setY(i, y);
     }
     rpp.needsUpdate = true;
+  }
+
+  // snow drifts gently in winter
+  const snowAmt = isWinter ? (0.35 + weather.rain * 0.65) : 0;
+  snowPts.material.opacity = snowAmt * 0.72;
+  if (snowAmt > 0.02) {
+    const sp = snowPts.geometry.attributes.position;
+    for (let i = 0; i < snowVel.length; i++) {
+      const x = sp.getX(i) + Math.sin(t * 0.4 + snowDrift[i]) * 0.08;
+      const y = sp.getY(i) - snowVel[i] * dt;
+      sp.setXYZ(i, x, y < 0 ? 30 : y, sp.getZ(i));
+    }
+    sp.needsUpdate = true;
   }
 
   // water ripple

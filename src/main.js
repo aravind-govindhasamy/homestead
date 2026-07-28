@@ -4,9 +4,10 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { terrain, terrainHeightAt, sculptAt } from './terrain.js';
+import { terrain, terrainHeightAt, sculptAt, SPOTS } from './terrain.js';
 import {
-  sky, sun, moon, hemi, updateDay, configureRenderer, buildScenery, updateEnvironment, CAMPFIRE, weather,
+  sky, sun, moon, hemi, updateDay, configureRenderer, buildScenery, updateEnvironment,
+  CAMPFIRE, weather, getSeason, SEASONS,
 } from './environment.js';
 import { createHouse, groundAt } from './house.js';
 import { createFarm, updateFarm, interactFarm } from './farm.js';
@@ -66,6 +67,7 @@ let brushDir = 1;
 let buildType = 'wall';
 let camYaw = 0.6, camPitch = 0.42, camDist = 9;
 let wasRaining = false;
+let hunger = 100, fishing = false, fishTimer = 0, fishCount = 0;
 const input = { fwd: 0, side: 0, run: false };
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
@@ -84,7 +86,7 @@ function toast(msg) {
 
 // ---------- modes ----------
 const HINTS = {
-  play: 'WASD move · Shift run · drag look · E: farm plant/harvest, sleep at home when dark · rest by the fire to recover',
+  play: 'WASD move · Shift run · drag look · E: talk to friends · fish at pond · cook at kitchen · farm · sleep at home when dark',
   orbit: 'Drag to orbit · scroll zoom · right-drag pan',
   sculpt: 'Left-drag to sculpt terrain · scroll zoom',
   build: 'Click to place · right-click to remove · scroll zoom',
@@ -115,7 +117,7 @@ for (const t of ['wall', 'floor', 'roof']) {
     if (ghost) { scene.remove(ghost); ghost = makeModuleMesh(t, true); scene.add(ghost); }
   };
 }
-$('save').onclick = () => { saveGame({ dayTime, player, harvested, day, energy }); toast('Game saved'); };
+$('save').onclick = () => { saveGame({ dayTime, player, harvested, day, energy, hunger }); toast('Game saved'); };
 $('load').onclick = () => {
   const s = loadGame();
   if (!s) { toast('No valid save found'); return; }
@@ -124,6 +126,7 @@ $('load').onclick = () => {
   harvested = s.harvested;
   day = s.day;
   energy = s.energy;
+  if (s.hunger !== undefined) hunger = s.hunger;
   toast('Game loaded');
 };
 
@@ -138,11 +141,21 @@ addEventListener('keydown', e => {
   else if (e.code === 'KeyE' && mode === 'play') {
     const isNight = dayTime >= 20 || dayTime < 5;
     const friend = npcs.find(n => Math.hypot(n.x - player.x, n.z - player.z) < 2.5);
-    if (friend) {
+    const nearPond = Math.hypot(player.x - SPOTS.pond.x, player.z - SPOTS.pond.z) < SPOTS.pond.r + 3;
+    const nearKitchen = Math.hypot(player.x - (SPOTS.house.x + 2.2), player.z - (SPOTS.house.z - 3.6)) < 3;
+    if (fishing) {
+      toast('Patience… waiting for a bite 🎣');
+    } else if (friend) {
       toast(getGreeting(friend));
+    } else if (nearKitchen && hunger < 95) {
+      hunger = Math.min(100, hunger + 45); energy = Math.min(100, energy + 20);
+      toast('Ate a home-cooked meal 🍲 — feeling great!');
+    } else if (nearPond) {
+      fishing = true; fishTimer = 5 + Math.random() * 8;
+      toast('Casting line… 🎣');
     } else if (isNight && Math.hypot(player.x, player.z) < 9) {
-      day++; dayTime = 6; energy = 100;
-      toast(`Good morning! ☀️ Day ${day}`);
+      day++; dayTime = 6; energy = 100; hunger = Math.min(100, hunger + 20);
+      toast(`Good morning! ☀️ Day ${day} — ${SEASONS[getSeason(day)]}`);
     } else if (energy < 3) {
       toast('Too tired to work… rest by the fire or sleep at home');
     } else {
@@ -230,7 +243,7 @@ function tick() {
   dayTime = (dayTime + dt * GAME_HOURS_PER_SEC) % 24;
   if (dayTime < prevTime) { day++; toast(`Day ${day} 🌙`); } // stayed up past midnight
   const dayness = updateDay(dayTime, scene);
-  updateEnvironment(dt, t, dayness);
+  updateEnvironment(dt, t, dayness, day);
   const lampOn = dayness < 0.25;
   house.userData.light.intensity = lampOn ? 2.2 : 0;
   house.userData.lampShade.material.emissiveIntensity = lampOn ? 1.6 : 0.15;
@@ -259,16 +272,33 @@ function tick() {
   else energy += (nearFire ? 6 : 2) * dt;
   energy = Math.max(0, Math.min(100, energy));
 
-  const mood = energy > 65 ? (nearFriend || nearFire ? '😄' : '🙂')
-    : energy > 35 ? '🙂' : energy > 12 ? '😐' : '😫';
+  if (fishing) {
+    fishTimer -= dt;
+    if (fishTimer <= 0) {
+      fishing = false; fishCount++;
+      const catches = ['a trout', 'a sunfish', 'a perch', 'a tiny bass'];
+      toast(`Caught ${catches[(fishCount - 1) % 4]}! 🎣 Total: ${fishCount}`);
+      energy = Math.min(100, energy + 8);
+    }
+  }
+  hunger -= 0.18 * dt;
+  hunger = Math.max(0, Math.min(100, hunger));
+  const wellFed = hunger > 50;
+  const mood = energy > 65 && wellFed ? (nearFriend || nearFire ? '😄' : '🙂')
+    : energy > 65 ? '😊'
+    : energy > 35 ? (wellFed ? '🙂' : '😐')
+    : energy > 12 ? '😐' : '😫';
 
   const hh = String(Math.floor(dayTime)).padStart(2, '0');
   const mm = String(Math.floor((dayTime % 1) * 60)).padStart(2, '0');
   $('clock').textContent = `${hh}:${mm}`;
   $('day-label').childNodes[0].textContent = `Day ${day} · `;
+  $('season-label').textContent = SEASONS[getSeason(day)];
   $('mood').textContent = mood;
   $('energy-fill').style.width = `${energy}%`;
+  $('hunger-fill').style.width = `${hunger}%`;
   $('harvest').textContent = harvested;
+  $('fish-count').textContent = fishCount;
   $('npc-status').textContent =
     npcs.map(n => `${n.name} (${n.role}): ${n.status}`).join('\n') + '\nBiscuit 🐕: right beside you';
 

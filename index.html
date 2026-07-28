@@ -37,14 +37,19 @@
     .row { margin-top: 6px; }
     #title { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
     #mood { font-size: 18px; }
-    #energy-bar {
-      width: 130px; height: 8px; border-radius: 99px; background: rgba(255,255,255,.12);
-      margin: 6px 0 4px auto; overflow: hidden;
+    #energy-bar, #hunger-bar {
+      width: 130px; height: 7px; border-radius: 99px; background: rgba(255,255,255,.12);
+      margin: 4px 0 2px auto; overflow: hidden;
     }
     #energy-fill {
       height: 100%; width: 100%; border-radius: 99px; transition: width .3s;
       background: linear-gradient(90deg, #e4572e, #f3a712, var(--accent));
     }
+    #hunger-fill {
+      height: 100%; width: 100%; border-radius: 99px; transition: width .3s;
+      background: linear-gradient(90deg, #db2b39, #f3a712, #c9d478);
+    }
+    .bar-label { font-size: 10px; opacity: .55; text-align: right; margin-top: 4px; }
   </style>
 </head>
 <body>
@@ -71,8 +76,11 @@
   <div id="clockpane" class="panel">
     <div id="clock">08:00</div>
     <div id="day-label">Day 1 · <span id="mood">🙂</span></div>
+    <div id="season-label" class="bar-label">Spring</div>
     <div id="energy-bar"><div id="energy-fill"></div></div>
-    <div>Harvested: <span id="harvest">0</span> 🎃</div>
+    <div class="bar-label">Hunger</div>
+    <div id="hunger-bar"><div id="hunger-fill"></div></div>
+    <div style="margin-top:5px">Harvested: <span id="harvest">0</span> 🎃 · Fish: <span id="fish-count">0</span> 🎣</div>
   </div>
   <div id="hint" class="panel">WASD move · Shift run · drag look · E: farm plant/harvest, sleep at home when dark · rest by the fire to recover</div>
   <div id="toast"></div>
